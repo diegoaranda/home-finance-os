@@ -25,7 +25,7 @@ export function useRecurring() {
       const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
 
-      const [{ data, error }, { data: paidTx }] = await Promise.all([
+      const [{ data, error }, { data: paidTx, error: paidTxError }] = await Promise.all([
         supabase
           .from("recurring_tasks")
           .select("*, category:categories(*), account:accounts(*)")
@@ -33,24 +33,24 @@ export function useRecurring() {
           .order("due_day", { ascending: true }),
         supabase
           .from("transactions")
-          .select("description, account_from_id")
+          .select("recurring_task_id")
           .eq("household_id", appUser.household_id)
           .eq("type", "expense")
+          .not("recurring_task_id", "is", null)
           .gte("transaction_date", monthStart)
           .lt("transaction_date", monthEnd),
       ]);
 
       if (error) throw toError(error);
+      if (paidTxError) throw toError(paidTxError);
 
-      const paidKeys = new Set(
-        (paidTx ?? []).map(t => `${t.description}__${t.account_from_id}`)
+      const paidTaskIds = new Set(
+        (paidTx ?? []).map(t => t.recurring_task_id)
       );
 
       return (data ?? []).map(task => ({
         ...task,
-        _paidThisMonth: task.account_id
-          ? paidKeys.has(`${task.title}__${task.account_id}`)
-          : false,
+        _paidThisMonth: paidTaskIds.has(task.id),
       }));
     },
     enabled: !!appUser?.household_id,
@@ -108,9 +108,10 @@ export function useRecurring() {
 
   // Mark a recurring task as paid:
   // 1. Guards null account_id
-  // 2. Creates an expense transaction using the task's account_id
-  // 3. Optimistically removes the task from this month's list
-  // 4. Invalidates recurring + transactions + accounts + dashboard
+  // 2. Skips duplicates when this task already has an expense transaction this month
+  // 3. Creates an expense transaction linked by recurring_task_id
+  // 4. Optimistically removes the task from this month's list
+  // 5. Invalidates recurring + transactions + accounts + dashboard
   const markAsPaid = useMutation({
     mutationFn: async (task: any) => {
       if (!task.account_id) {
@@ -118,17 +119,41 @@ export function useRecurring() {
           "Seleccione una cuenta para este gasto antes de registrarlo como pagado."
         );
       }
+      if (!appUser?.household_id) {
+        throw new Error("No se encontró el hogar activo.");
+      }
+
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
       const today = format(new Date(), "yyyy-MM-dd");
+
+      const { data: existingTx, error: existingError } = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("household_id", appUser.household_id)
+        .eq("type", "expense")
+        .eq("recurring_task_id", task.id)
+        .gte("transaction_date", monthStart)
+        .lt("transaction_date", monthEnd)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingError) throw toError(existingError);
+      if (existingTx) return task;
+
       const { error } = await supabase
         .from("transactions")
         .insert([{
-          household_id: appUser?.household_id,
+          household_id: appUser.household_id,
           type: "expense",
           amount: task.amount,
           description: task.title,
           transaction_date: today,
           account_from_id: task.account_id,
           category_id: task.category_id ?? null,
+          recurring_task_id: task.id,
         }]);
       if (error) throw toError(error);
       return task;

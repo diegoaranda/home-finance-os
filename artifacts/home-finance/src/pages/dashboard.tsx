@@ -13,7 +13,7 @@ import {
   CreditCard, ChevronRight, CheckCircle2, AlertCircle
 } from "lucide-react";
 import { Link } from "wouter";
-import { format } from "date-fns";
+import { format, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default function Dashboard() {
@@ -38,14 +38,32 @@ export default function Dashboard() {
     );
   }
 
-  const today = new Date().getDate();
-  const activeTasks = recurringTasks.filter(t => t.active && !t._paidThisMonth);
-  const overdue  = activeTasks.filter(t => t.due_day < today).sort((a, b) => a.due_day - b.due_day);
-  const dueToday = activeTasks.filter(t => t.due_day === today);
-  const upcoming = activeTasks.filter(t => t.due_day > today).sort((a, b) => a.due_day - b.due_day);
+  const now = new Date();
+  const today = now.getDate();
+  const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const monthEnd = format(nextMonth, "yyyy-MM-dd");
+  const paidTaskIds = new Set(
+    transactions
+      .filter(tx =>
+        tx.type === "expense" &&
+        tx.recurring_task_id &&
+        tx.transaction_date >= monthStart &&
+        tx.transaction_date < monthEnd
+      )
+      .map(tx => tx.recurring_task_id)
+  );
+  const dashboardTasks = recurringTasks.map(task => ({
+    ...task,
+    _paidThisMonth: paidTaskIds.has(task.id),
+  }));
+  const pendingTasks = dashboardTasks.filter(t => t.active && !t._paidThisMonth);
+  const overdue  = pendingTasks.filter(t => t.due_day < today).sort((a, b) => a.due_day - b.due_day);
+  const dueToday = pendingTasks.filter(t => t.due_day === today);
+  const upcoming = pendingTasks.filter(t => t.due_day > today).sort((a, b) => a.due_day - b.due_day);
   const sortedPayments = [...overdue, ...dueToday, ...upcoming].slice(0, 5);
 
-  const totalPending = activeTasks.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const totalPending = pendingTasks.reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
   const recentTx = transactions.slice(0, 5);
 
@@ -151,7 +169,7 @@ export default function Dashboard() {
                       <div className="min-w-0">
                         <p className="font-medium truncate">{task.title}</p>
                         <p className={`text-xs ${isOverdue ? "text-destructive font-medium" : isToday ? "text-primary font-medium" : "text-muted-foreground"}`}>
-                          {isOverdue ? `Vencido el día ${task.due_day}` : isToday ? "Vence hoy" : `Vence el día ${task.due_day}`}
+                          Pendiente · {isOverdue ? `vencido el día ${task.due_day}` : isToday ? "vence hoy" : `vence el día ${task.due_day}`}
                         </p>
                       </div>
                     </div>
@@ -167,7 +185,7 @@ export default function Dashboard() {
                         data-testid={`button-pay-${task.id}`}
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        {payingId === task.id ? "..." : "Pagado"}
+                        {payingId === task.id ? "..." : "Marcar pagado"}
                       </Button>
                     </div>
                   </div>
