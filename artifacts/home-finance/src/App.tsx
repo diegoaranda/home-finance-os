@@ -14,6 +14,7 @@ import Goals from "@/pages/goals";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings/index";
 import AccountsSettings from "@/pages/settings/accounts";
+import AccountDetail from "@/pages/settings/account-detail";
 import RecurringSettings from "@/pages/settings/recurring";
 import CategoriesSettings from "@/pages/settings/categories";
 import BudgetsSettings from "@/pages/settings/budgets";
@@ -30,6 +31,7 @@ function ProtectedApp() {
           <Route path="/goals" component={Goals} />
           <Route path="/reports" component={Reports} />
           <Route path="/settings" component={Settings} />
+          <Route path="/settings/accounts/:id" component={AccountDetail} />
           <Route path="/settings/accounts" component={AccountsSettings} />
           <Route path="/settings/recurring" component={RecurringSettings} />
           <Route path="/settings/categories" component={CategoriesSettings} />

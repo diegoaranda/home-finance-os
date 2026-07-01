@@ -3,13 +3,14 @@ import { useTransactions } from "@/hooks/use-transactions";
 import { formatCurrency } from "@/lib/currency";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { Plus, ArrowDownRight, ArrowUpRight, ArrowLeftRight, Search, ListOrdered } from "lucide-react";
+import { Plus, ArrowDownRight, ArrowUpRight, ArrowLeftRight, Search, ListOrdered, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCategories } from "@/hooks/use-categories";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +22,7 @@ function getTodayInputValue() {
 type TransactionKind = "expense" | "income" | "transfer";
 
 export default function Transactions() {
-  const { transactions, isLoading, createTransaction } = useTransactions();
+  const { transactions, isLoading, createTransaction, updateTransaction, deleteTransaction } = useTransactions();
   const { accounts } = useAccounts();
   const { categories } = useCategories();
   const { toast } = useToast();
@@ -30,6 +31,8 @@ export default function Transactions() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingTx, setEditingTx] = useState<any | null>(null);
+  const [deletingTx, setDeletingTx] = useState<any | null>(null);
   
   // Form state
   const [type, setType] = useState<TransactionKind>("expense");
@@ -45,6 +48,53 @@ export default function Transactions() {
   const isValid = isTransfer
     ? amountValue > 0 && !!accountFromId && !!accountToId && accountFromId !== accountToId && !!date
     : amountValue > 0 && !!accountId && !!categoryId && !!date;
+
+  const resetForm = () => {
+    setType("expense");
+    setAmount("");
+    setDescription("");
+    setAccountId("");
+    setAccountFromId("");
+    setAccountToId("");
+    setCategoryId("");
+    setDate(getTodayInputValue());
+    setEditingTx(null);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setOpen(true);
+  };
+
+  const openEdit = (tx: any) => {
+    const txType = (tx.type === "transfer" || tx.type === "income" || tx.type === "expense") ? tx.type : "expense";
+    setEditingTx(tx);
+    setType(txType);
+    setAmount(String(tx.amount ?? ""));
+    setDescription(tx.description ?? "");
+    setDate(tx.transaction_date ?? getTodayInputValue());
+    setCategoryId(tx.category_id ?? "");
+    setAccountId(txType === "income" ? tx.account_to_id ?? tx.account_id ?? "" : tx.account_from_id ?? tx.account_id ?? "");
+    setAccountFromId(tx.account_from_id ?? "");
+    setAccountToId(tx.account_to_id ?? "");
+    setOpen(true);
+  };
+
+  const handleOpenChange = (value: boolean) => {
+    setOpen(value);
+    if (!value) resetForm();
+  };
+
+  const buildPayload = () => ({
+    type,
+    amount: amountValue,
+    description: description.trim() || null,
+    account_from_id: isTransfer || type === "expense" ? (isTransfer ? accountFromId : accountId) : null,
+    account_to_id: isTransfer || type === "income" ? (isTransfer ? accountToId : accountId) : null,
+    category_id: isTransfer ? null : categoryId,
+    transaction_date: date,
+    recurring_task_id: isTransfer ? null : editingTx?.recurring_task_id ?? null,
+  });
 
   const filteredTx = transactions.filter(tx => {
     if (filter !== "all" && tx.type !== filter) return false;
@@ -72,26 +122,15 @@ export default function Transactions() {
 
     setSaving(true);
     try {
-      await createTransaction.mutateAsync({
-        type,
-        amount: amountValue,
-        description: description.trim() || null,
-        account_from_id: isTransfer || type === "expense" ? (isTransfer ? accountFromId : accountId) : null,
-        account_to_id: isTransfer || type === "income" ? (isTransfer ? accountToId : accountId) : null,
-        category_id: isTransfer ? null : categoryId,
-        transaction_date: date,
-        recurring_task_id: null,
-      });
+      const payload = buildPayload();
+      if (editingTx) {
+        await updateTransaction.mutateAsync({ id: editingTx.id, data: payload });
+      } else {
+        await createTransaction.mutateAsync(payload);
+      }
       setOpen(false);
-      // Reset form
-      setAmount("");
-      setDescription("");
-      setAccountId("");
-      setAccountFromId("");
-      setAccountToId("");
-      setCategoryId("");
-      setDate(getTodayInputValue());
-      toast({ title: "Movimiento registrado" });
+      resetForm();
+      toast({ title: editingTx ? "Movimiento actualizado" : "Movimiento registrado" });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally {
@@ -99,29 +138,40 @@ export default function Transactions() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deletingTx) return;
+    try {
+      await deleteTransaction.mutateAsync(deletingTx.id);
+      setDeletingTx(null);
+      toast({ title: "Movimiento eliminado" });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    }
+  };
+
   return (
     <div className="p-6 space-y-6 pb-24">
       <header className="flex justify-between items-center">
         <h1 className="text-2xl font-bold tracking-tight">Movimientos</h1>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
-            <Button size="icon" className="h-10 w-10 rounded-full shadow-lg" data-testid="button-add-transaction">
+            <Button size="icon" className="h-10 w-10 rounded-full shadow-lg" onClick={openCreate} data-testid="button-add-transaction">
               <Plus className="h-5 w-5" />
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px] rounded-3xl">
             <DialogHeader>
-              <DialogTitle>Nuevo Movimiento</DialogTitle>
+              <DialogTitle>{editingTx ? "Editar Movimiento" : "Nuevo Movimiento"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={onSubmit} className="space-y-4 pt-4">
               <div className="grid grid-cols-3 gap-2">
-                <Button type="button" variant={type === "expense" ? "default" : "outline"} onClick={() => { setType("expense"); setCategoryId(""); }} className={type === "expense" ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : ""} data-testid="button-transaction-expense">
+                <Button type="button" variant={type === "expense" ? "default" : "outline"} onClick={() => { setType("expense"); setCategoryId(""); }} disabled={!!editingTx} className={type === "expense" ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : ""} data-testid="button-transaction-expense">
                   Gasto
                 </Button>
-                <Button type="button" variant={type === "income" ? "default" : "outline"} onClick={() => { setType("income"); setCategoryId(""); }} data-testid="button-transaction-income">
+                <Button type="button" variant={type === "income" ? "default" : "outline"} onClick={() => { setType("income"); setCategoryId(""); }} disabled={!!editingTx} data-testid="button-transaction-income">
                   Ingreso
                 </Button>
-                <Button type="button" variant={type === "transfer" ? "default" : "outline"} onClick={() => { setType("transfer"); setCategoryId(""); }} data-testid="button-transaction-transfer">
+                <Button type="button" variant={type === "transfer" ? "default" : "outline"} onClick={() => { setType("transfer"); setCategoryId(""); }} disabled={!!editingTx} data-testid="button-transaction-transfer">
                   Transferencia
                 </Button>
               </div>
@@ -196,7 +246,7 @@ export default function Transactions() {
               </div>
 
               <Button type="submit" className="w-full" disabled={saving || !isValid} data-testid="button-submit-transaction">
-                {saving ? "Guardando..." : "Guardar"}
+                {saving ? "Guardando..." : editingTx ? "Actualizar" : "Guardar"}
               </Button>
             </form>
           </DialogContent>
@@ -256,6 +306,30 @@ export default function Transactions() {
               <span className={`font-bold shrink-0 tabular-nums ${tx.type === 'income' ? 'text-primary' : isTransferTx ? 'text-muted-foreground' : 'text-destructive'}`}>
                 {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}
               </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full shrink-0"
+                    data-testid={`button-transaction-menu-${tx.id}`}
+                  >
+                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-xl">
+                  <DropdownMenuItem onClick={() => openEdit(tx)} data-testid={`button-edit-transaction-${tx.id}`}>
+                    Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => setDeletingTx(tx)}
+                    data-testid={`button-delete-transaction-${tx.id}`}
+                  >
+                    Eliminar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )})}
         </div>
@@ -268,6 +342,32 @@ export default function Transactions() {
           <p className="text-sm text-muted-foreground">No se encontraron transacciones para estos filtros.</p>
         </div>
       )}
+
+      <Dialog open={!!deletingTx} onOpenChange={open => { if (!open) setDeletingTx(null); }}>
+        <DialogContent className="sm:max-w-[380px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Eliminar movimiento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 pt-2">
+            <p className="text-sm text-muted-foreground">
+              Esta acción eliminará el movimiento y actualizará saldos, Dashboard y resúmenes por cuenta.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="outline" onClick={() => setDeletingTx(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteTransaction.isPending}
+                data-testid="button-confirm-delete-transaction"
+              >
+                {deleteTransaction.isPending ? "Eliminando..." : "Eliminar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/currency";
 import {
-  Wallet, Plus, ChevronLeft, MoreVertical,
+  Wallet, Plus, ChevronLeft, ChevronRight, MoreVertical,
   CreditCard, Building, Banknote, Bitcoin, Coins, PiggyBank
 } from "lucide-react";
 import { Link } from "wouter";
@@ -199,6 +199,17 @@ export default function AccountsSettings() {
                   <span className="font-bold tabular-nums">
                     {formatCurrency(acc.current_balance ?? acc.initial_balance ?? 0)}
                   </span>
+
+                  <Link href={`/settings/accounts/${acc.id}`}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      data-testid={`button-account-detail-${acc.id}`}
+                    >
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  </Link>
 
                   <Switch
                     checked={!!acc.active}
