@@ -1,0 +1,199 @@
+Quiero crear una aplicación web privada llamada Home Finance OS para administrar las finanzas del hogar.
+
+Contexto:
+Ya tengo un proyecto en Supabase creado con estas tablas existentes:
+- households
+- users
+- accounts
+- categories
+- recurring_tasks
+- transactions
+- budgets
+- savings_goals
+
+No crees una base de datos nueva.
+No inventes tablas nuevas.
+No modifiques el esquema de Supabase.
+Usa Supabase Auth para login.
+La app será usada solo por dos usuarios: Diego y Jhoselin.
+
+Tecnologías:
+- React
+- Vite
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- lucide-react
+- Supabase JS
+- Preparada para desplegarse en Vercel
+
+Objetivo de la V1:
+Construir una app funcional, no solo visual.
+
+Debe permitir:
+1. Iniciar sesión con Supabase Auth.
+2. Ver dashboard.
+3. Crear cuentas.
+4. Crear gastos fijos/recurrentes del mes.
+5. Registrar gastos diarios.
+6. Registrar ingresos.
+7. Ver últimos movimientos.
+8. Ver próximos pagos en el dashboard.
+9. Cerrar sesión.
+
+Diseño:
+Usa como referencia visual una app financiera minimalista tipo Apple/Copilot Money:
+- fondo gris muy claro
+- tarjetas blancas
+- bordes redondeados
+- sombras suaves
+- verde como color principal
+- negro para tarjeta principal
+- moneda Boliviano: Bs
+- formato: Bs 1.250,50
+- navegación inferior fija con:
+  Inicio, Movimientos, Metas, Reportes, Ajustes
+
+Login:
+Pantalla simple:
+- correo
+- contraseña
+- botón Iniciar sesión
+- sin registro público
+- sin recuperar contraseña por ahora
+
+Dashboard:
+Mostrar:
+- saludo dinámico: Buenos días/tardes/noches, Diego o Jhoselin
+- saldo total
+- ingresos del mes
+- gastos del mes
+- próximos pagos
+- metas
+- últimos movimientos
+
+Si no hay datos, mostrar estados vacíos elegantes.
+
+Cuentas:
+Permitir crear, editar, eliminar y listar cuentas.
+Campos:
+- name
+- type
+- initial_balance
+- color
+- icon
+- active
+
+Tipos:
+- bank
+- cash
+- savings
+- credit_card
+- investment
+- crypto
+
+Gastos recurrentes:
+Usar tabla recurring_tasks.
+Permitir:
+- crear
+- editar
+- eliminar
+- activar/desactivar
+- listar
+
+Formulario:
+- title
+- amount
+- variable_amount
+- due_day
+- category_id
+- account_id
+- description
+- active
+
+Valores por defecto:
+- task_type = expense
+- frequency = monthly
+- active = true
+
+En dashboard:
+Mostrar máximo 5 próximos pagos.
+Orden:
+1. vencidos
+2. hoy
+3. próximos del mes
+
+Movimientos:
+Usar tabla transactions.
+Permitir registrar:
+- gasto
+- ingreso
+- transferencia
+
+Formulario gasto:
+- amount
+- account_from_id
+- category_id
+- description
+- transaction_date
+
+Formulario ingreso:
+- amount
+- account_to_id
+- category_id
+- description
+- transaction_date
+
+Valores:
+- type = expense para gastos
+- type = income para ingresos
+
+Últimos movimientos:
+Mostrar los más recientes desde transactions.
+
+Metas:
+Usar savings_goals.
+Por ahora solo listar metas si existen y mostrar estado vacío si no hay.
+
+Reportes:
+Por ahora mostrar placeholders limpios:
+- Gastos por categoría
+- Ingresos vs gastos
+- Evolución mensual
+
+Ajustes:
+Debe incluir accesos a:
+- Cuentas
+- Categorías
+- Gastos recurrentes
+- Presupuestos
+- Perfil
+- Cerrar sesión
+
+Importante:
+No uses datos falsos en producción.
+Puedes usar placeholders solo si la tabla está vacía.
+Todos los datos reales deben venir de Supabase.
+
+Variables de entorno:
+Configura:
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+
+Crea un archivo .env.example con esas variables.
+
+Estructura sugerida:
+src/
+  components/
+  pages/
+  lib/
+  hooks/
+  services/
+  types/
+
+Prioridad:
+Primero hacer que login, cuentas, gastos recurrentes y movimientos funcionen.
+Después mejorar reportes y metas.
+
+No sobreingenierizar.
+Construye una V1 simple, funcional y limpia.
