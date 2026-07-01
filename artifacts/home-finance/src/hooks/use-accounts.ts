@@ -41,7 +41,19 @@ export function useAccounts() {
         }])
         .select()
         .single();
-      if (error) throw toError(error);
+      if (error) {
+        console.log("=== SUPABASE INSERT ERROR ===");
+        console.log("table:", "accounts");
+        console.log("user_id:", appUser?.id);
+        console.log("household_id:", appUser?.household_id);
+        console.log("columns sent:", JSON.stringify({ ...newAccount, initial_balance: initial, household_id: appUser?.household_id }));
+        console.log("error.code:", error.code);
+        console.log("error.message:", error.message);
+        console.log("error.details:", error.details);
+        console.log("error.hint:", error.hint);
+        console.log("full error object:", JSON.stringify(error));
+        throw toError(error);
+      }
       return data;
     },
     onSuccess: () => {
