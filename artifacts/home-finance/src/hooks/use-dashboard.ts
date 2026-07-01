@@ -14,12 +14,12 @@ export function useDashboard() {
       // Fetch accounts to sum total balance
       const { data: accounts, error: accountsError } = await supabase
         .from("accounts")
-        .select("current_balance")
+        .select("initial_balance")
         .eq("household_id", appUser.household_id);
       
       if (accountsError) throw accountsError;
       
-      const totalBalance = accounts?.reduce((sum, acc) => sum + Number(acc.current_balance || 0), 0) || 0;
+      const totalBalance = accounts?.reduce((sum, acc) => sum + Number(acc.initial_balance || 0), 0) || 0;
 
       // Fetch this month's transactions
       const start = startOfMonth(new Date()).toISOString();

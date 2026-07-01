@@ -101,7 +101,7 @@ export default function Transactions() {
                   <SelectTrigger><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger>
                   <SelectContent>
                     {accounts.map(acc => (
-                      <SelectItem key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.current_balance)})</SelectItem>
+                      <SelectItem key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.initial_balance ?? 0)})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

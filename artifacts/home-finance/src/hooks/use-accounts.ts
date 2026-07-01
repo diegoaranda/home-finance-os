@@ -37,7 +37,6 @@ export function useAccounts() {
         .insert([{
           ...newAccount,
           initial_balance: initial,
-          current_balance: initial,
           household_id: appUser?.household_id,
         }])
         .select()
