@@ -39,15 +39,13 @@ export default function Dashboard() {
   }
 
   const today = new Date().getDate();
-  const activeTasks = recurringTasks.filter(t => t.active);
+  const activeTasks = recurringTasks.filter(t => t.active && !t._paidThisMonth);
   const overdue  = activeTasks.filter(t => t.due_day < today).sort((a, b) => a.due_day - b.due_day);
   const dueToday = activeTasks.filter(t => t.due_day === today);
   const upcoming = activeTasks.filter(t => t.due_day > today).sort((a, b) => a.due_day - b.due_day);
   const sortedPayments = [...overdue, ...dueToday, ...upcoming].slice(0, 5);
 
-  const totalPending = activeTasks
-    .filter(t => t.due_day <= today + 7)
-    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const totalPending = activeTasks.reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
   const recentTx = transactions.slice(0, 5);
 

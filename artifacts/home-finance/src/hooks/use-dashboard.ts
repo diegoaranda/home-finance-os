@@ -11,38 +11,52 @@ export function useDashboard() {
     queryFn: async () => {
       if (!appUser?.household_id) return null;
 
-      // Fetch accounts to sum total balance
-      const { data: accounts, error: accountsError } = await supabase
-        .from("accounts")
-        .select("initial_balance")
-        .eq("household_id", appUser.household_id);
-      
+      const start = startOfMonth(new Date()).toISOString().split("T")[0];
+      const end = endOfMonth(new Date()).toISOString().split("T")[0];
+
+      const [
+        { data: accounts, error: accountsError },
+        { data: allTx, error: allTxError },
+        { data: monthTx, error: monthTxError },
+      ] = await Promise.all([
+        supabase
+          .from("accounts")
+          .select("initial_balance, active")
+          .eq("household_id", appUser.household_id),
+        supabase
+          .from("transactions")
+          .select("type, amount")
+          .eq("household_id", appUser.household_id),
+        supabase
+          .from("transactions")
+          .select("type, amount")
+          .eq("household_id", appUser.household_id)
+          .gte("transaction_date", start)
+          .lte("transaction_date", end),
+      ]);
+
       if (accountsError) throw accountsError;
-      
-      const totalBalance = accounts?.reduce((sum, acc) => sum + Number(acc.initial_balance || 0), 0) || 0;
+      if (allTxError) throw allTxError;
+      if (monthTxError) throw monthTxError;
 
-      // Fetch this month's transactions
-      const start = startOfMonth(new Date()).toISOString();
-      const end = endOfMonth(new Date()).toISOString();
-      
-      const { data: transactions, error: txError } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("household_id", appUser.household_id)
-        .gte("transaction_date", start)
-        .lte("transaction_date", end);
+      // Total balance = sum of active account initial balances + net of ALL transactions
+      const initialSum = (accounts ?? [])
+        .filter(a => a.active)
+        .reduce((s, a) => s + Number(a.initial_balance || 0), 0);
 
-      if (txError) throw txError;
+      const allTxNet = (allTx ?? []).reduce((s, tx) => {
+        if (tx.type === "income") return s + Number(tx.amount || 0);
+        if (tx.type === "expense") return s - Number(tx.amount || 0);
+        return s;
+      }, 0);
+
+      const totalBalance = initialSum + allTxNet;
 
       let income = 0;
       let expenses = 0;
-
-      transactions?.forEach((tx) => {
-        if (tx.type === "income") {
-          income += Number(tx.amount || 0);
-        } else if (tx.type === "expense") {
-          expenses += Number(tx.amount || 0);
-        }
+      (monthTx ?? []).forEach(tx => {
+        if (tx.type === "income") income += Number(tx.amount || 0);
+        else if (tx.type === "expense") expenses += Number(tx.amount || 0);
       });
 
       return {

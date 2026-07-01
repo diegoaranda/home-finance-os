@@ -115,6 +115,15 @@ export default function RecurringSettings() {
       payload.reminder_days_before = parseInt(form.reminder_days_before) || null;
     }
 
+    if (!payload.account_id) {
+      toast({
+        title: "Cuenta requerida",
+        description: "Seleccione una cuenta para este gasto fijo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       if (editingId) {
         await updateRecurring.mutateAsync({ id: editingId, data: payload });
