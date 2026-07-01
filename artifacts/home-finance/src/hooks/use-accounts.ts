@@ -2,6 +2,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 
+function toError(e: unknown): Error {
+  if (e instanceof Error) return e;
+  if (e && typeof e === "object" && "message" in e) {
+    return new Error(String((e as any).message));
+  }
+  return new Error(String(e));
+}
+
 export function useAccounts() {
   const { appUser } = useAuth();
   const queryClient = useQueryClient();
@@ -15,21 +23,26 @@ export function useAccounts() {
         .select("*")
         .eq("household_id", appUser.household_id)
         .order("name");
-      
-      if (error) throw error;
-      return data;
+      if (error) throw toError(error);
+      return data ?? [];
     },
     enabled: !!appUser?.household_id,
   });
 
   const createAccount = useMutation({
     mutationFn: async (newAccount: any) => {
+      const initial = parseFloat(newAccount.initial_balance) || 0;
       const { data, error } = await supabase
         .from("accounts")
-        .insert([{ ...newAccount, household_id: appUser?.household_id }])
+        .insert([{
+          ...newAccount,
+          initial_balance: initial,
+          current_balance: initial,
+          household_id: appUser?.household_id,
+        }])
         .select()
         .single();
-      if (error) throw error;
+      if (error) throw toError(error);
       return data;
     },
     onSuccess: () => {
@@ -46,7 +59,7 @@ export function useAccounts() {
         .eq("household_id", appUser?.household_id)
         .select()
         .single();
-      if (error) throw error;
+      if (error) throw toError(error);
       return result;
     },
     onSuccess: () => {
@@ -61,7 +74,7 @@ export function useAccounts() {
         .delete()
         .eq("id", id)
         .eq("household_id", appUser?.household_id);
-      if (error) throw error;
+      if (error) throw toError(error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["accounts", appUser?.household_id] });

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/currency";
 import {
   Wallet, Plus, ChevronLeft, MoreVertical,
@@ -59,6 +60,7 @@ const DEFAULT_FORM: FormState = {
 
 export default function AccountsSettings() {
   const { accounts, isLoading, createAccount, updateAccount, deleteAccount } = useAccounts();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
@@ -102,19 +104,35 @@ export default function AccountsSettings() {
       active: form.active,
     };
 
-    if (editingId) {
-      await updateAccount.mutateAsync({ id: editingId, data: payload });
-    } else {
-      await createAccount.mutateAsync(payload);
+    try {
+      if (editingId) {
+        await updateAccount.mutateAsync({ id: editingId, data: payload });
+      } else {
+        await createAccount.mutateAsync(payload);
+      }
+      handleClose();
+    } catch (err: any) {
+      toast({
+        title: "Error al guardar",
+        description: err?.message ?? "No se pudo guardar la cuenta.",
+        variant: "destructive",
+      });
     }
-    handleClose();
   };
 
   const toggleActive = async (acc: any) => {
-    await updateAccount.mutateAsync({
-      id: acc.id,
-      data: { active: !acc.active },
-    });
+    try {
+      await updateAccount.mutateAsync({
+        id: acc.id,
+        data: { active: !acc.active },
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message ?? "No se pudo actualizar la cuenta.",
+        variant: "destructive",
+      });
+    }
   };
 
   const isPending = createAccount.isPending || updateAccount.isPending;
