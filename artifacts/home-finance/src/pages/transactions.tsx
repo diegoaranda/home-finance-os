@@ -3,7 +3,7 @@ import { useTransactions } from "@/hooks/use-transactions";
 import { formatCurrency } from "@/lib/currency";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { Plus, ArrowDownRight, ArrowUpRight, Search, ListOrdered } from "lucide-react";
+import { Plus, ArrowDownRight, ArrowUpRight, ArrowLeftRight, Search, ListOrdered } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCategories } from "@/hooks/use-categories";
 import { useToast } from "@/hooks/use-toast";
+
+function getTodayInputValue() {
+  return format(new Date(), "yyyy-MM-dd");
+}
+
+type TransactionKind = "expense" | "income" | "transfer";
 
 export default function Transactions() {
   const { transactions, isLoading, createTransaction } = useTransactions();
@@ -26,22 +32,28 @@ export default function Transactions() {
   const [saving, setSaving] = useState(false);
   
   // Form state
-  const [type, setType] = useState("expense");
+  const [type, setType] = useState<TransactionKind>("expense");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [accountFromId, setAccountFromId] = useState("");
+  const [accountToId, setAccountToId] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayInputValue);
   const amountValue = parseFloat(amount);
-  const isValid = amountValue > 0 && !!accountId && !!categoryId && !!date;
+  const isTransfer = type === "transfer";
+  const isValid = isTransfer
+    ? amountValue > 0 && !!accountFromId && !!accountToId && accountFromId !== accountToId && !!date
+    : amountValue > 0 && !!accountId && !!categoryId && !!date;
 
   const filteredTx = transactions.filter(tx => {
     if (filter !== "all" && tx.type !== filter) return false;
     const query = search.toLowerCase();
     const matchesDescription = tx.description?.toLowerCase().includes(query);
     const matchesCategory = tx.category?.name?.toLowerCase().includes(query);
-    const matchesAccount = (tx.type === "income" ? tx.account_to?.name : tx.account_from?.name)?.toLowerCase().includes(query);
-    if (search && !matchesDescription && !matchesCategory && !matchesAccount) return false;
+    const matchesAccountFrom = tx.account_from?.name?.toLowerCase().includes(query);
+    const matchesAccountTo = tx.account_to?.name?.toLowerCase().includes(query);
+    if (search && !matchesDescription && !matchesCategory && !matchesAccountFrom && !matchesAccountTo) return false;
     return true;
   });
 
@@ -51,7 +63,9 @@ export default function Transactions() {
       toast({
         variant: "destructive",
         title: "Faltan datos",
-        description: "Seleccione tipo, cuenta, categoría, monto mayor a cero y fecha.",
+        description: isTransfer
+          ? "Seleccione cuentas distintas, monto mayor a cero y fecha."
+          : "Seleccione tipo, cuenta, categoría, monto mayor a cero y fecha.",
       });
       return;
     }
@@ -62,9 +76,9 @@ export default function Transactions() {
         type,
         amount: amountValue,
         description: description.trim() || null,
-        account_from_id: type === "expense" ? accountId : null,
-        account_to_id: type === "income" ? accountId : null,
-        category_id: categoryId,
+        account_from_id: isTransfer || type === "expense" ? (isTransfer ? accountFromId : accountId) : null,
+        account_to_id: isTransfer || type === "income" ? (isTransfer ? accountToId : accountId) : null,
+        category_id: isTransfer ? null : categoryId,
         transaction_date: date,
         recurring_task_id: null,
       });
@@ -73,8 +87,10 @@ export default function Transactions() {
       setAmount("");
       setDescription("");
       setAccountId("");
+      setAccountFromId("");
+      setAccountToId("");
       setCategoryId("");
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getTodayInputValue());
       toast({ title: "Movimiento registrado" });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -98,12 +114,15 @@ export default function Transactions() {
               <DialogTitle>Nuevo Movimiento</DialogTitle>
             </DialogHeader>
             <form onSubmit={onSubmit} className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button type="button" variant={type === "expense" ? "default" : "outline"} onClick={() => { setType("expense"); setCategoryId(""); }} className={type === "expense" ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : ""} data-testid="button-transaction-expense">
                   Gasto
                 </Button>
                 <Button type="button" variant={type === "income" ? "default" : "outline"} onClick={() => { setType("income"); setCategoryId(""); }} data-testid="button-transaction-income">
                   Ingreso
+                </Button>
+                <Button type="button" variant={type === "transfer" ? "default" : "outline"} onClick={() => { setType("transfer"); setCategoryId(""); }} data-testid="button-transaction-transfer">
+                  Transferencia
                 </Button>
               </div>
 
@@ -112,29 +131,59 @@ export default function Transactions() {
                 <Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} required placeholder="0.00" className="text-lg" data-testid="input-transaction-amount" />
               </div>
 
-              <div className="space-y-2">
-                <Label>Cuenta</Label>
-                <Select value={accountId} onValueChange={setAccountId} required>
-                  <SelectTrigger data-testid="select-transaction-account"><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger>
-                  <SelectContent>
-                    {accounts.map(acc => (
-                      <SelectItem key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.initial_balance ?? 0)})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {isTransfer ? (
+                <>
+                  <div className="space-y-2">
+                    <Label>Cuenta origen</Label>
+                    <Select value={accountFromId} onValueChange={setAccountFromId} required>
+                      <SelectTrigger data-testid="select-transfer-account-from"><SelectValue placeholder="Selecciona origen" /></SelectTrigger>
+                      <SelectContent>
+                        {accounts.map(acc => (
+                          <SelectItem key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.current_balance ?? acc.initial_balance ?? 0)})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Categoría</Label>
-                <Select value={categoryId} onValueChange={setCategoryId}>
-                  <SelectTrigger data-testid="select-transaction-category"><SelectValue placeholder="Selecciona una categoría" /></SelectTrigger>
-                  <SelectContent>
-                    {categories.filter(c => !c.type || c.type === type).map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="space-y-2">
+                    <Label>Cuenta destino</Label>
+                    <Select value={accountToId} onValueChange={setAccountToId} required>
+                      <SelectTrigger data-testid="select-transfer-account-to"><SelectValue placeholder="Selecciona destino" /></SelectTrigger>
+                      <SelectContent>
+                        {accounts.map(acc => (
+                          <SelectItem key={acc.id} value={acc.id} disabled={acc.id === accountFromId}>{acc.name} ({formatCurrency(acc.current_balance ?? acc.initial_balance ?? 0)})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>Cuenta</Label>
+                    <Select value={accountId} onValueChange={setAccountId} required>
+                      <SelectTrigger data-testid="select-transaction-account"><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger>
+                      <SelectContent>
+                        {accounts.map(acc => (
+                          <SelectItem key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.current_balance ?? acc.initial_balance ?? 0)})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Categoría</Label>
+                    <Select value={categoryId} onValueChange={setCategoryId}>
+                      <SelectTrigger data-testid="select-transaction-category"><SelectValue placeholder="Selecciona una categoría" /></SelectTrigger>
+                      <SelectContent>
+                        {categories.filter(c => !c.type || c.type === type).map(cat => (
+                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label>Fecha</Label>
@@ -166,10 +215,11 @@ export default function Transactions() {
         </div>
 
         <Tabs value={filter} onValueChange={setFilter} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 rounded-xl bg-card">
+          <TabsList className="grid w-full grid-cols-4 rounded-xl bg-card">
             <TabsTrigger value="all" className="rounded-lg">Todos</TabsTrigger>
             <TabsTrigger value="income" className="rounded-lg">Ingresos</TabsTrigger>
             <TabsTrigger value="expense" className="rounded-lg">Gastos</TabsTrigger>
+            <TabsTrigger value="transfer" className="rounded-lg">Transferencias</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -181,24 +231,30 @@ export default function Transactions() {
       ) : filteredTx.length > 0 ? (
         <div className="space-y-3">
           {filteredTx.map((tx) => {
+            const isTransferTx = tx.type === "transfer";
             const accountName = tx.type === "income" ? tx.account_to?.name : tx.account_from?.name;
+            const transferRoute = `${tx.account_from?.name || "Sin origen"} -> ${tx.account_to?.name || "Sin destino"}`;
             return (
             <div key={tx.id} className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-card shadow-sm border border-border/40">
               <div className="flex items-center gap-4 min-w-0">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${tx.type === 'income' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}>
-                  {tx.type === 'income' ? <ArrowDownRight className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${tx.type === 'income' ? 'bg-primary/10 text-primary' : isTransferTx ? 'bg-muted text-muted-foreground' : 'bg-destructive/10 text-destructive'}`}>
+                  {tx.type === 'income'
+                    ? <ArrowDownRight className="w-5 h-5" />
+                    : isTransferTx
+                      ? <ArrowLeftRight className="w-5 h-5" />
+                      : <ArrowUpRight className="w-5 h-5" />}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-medium truncate">{tx.category?.name || (tx.type === 'income' ? 'Ingreso' : 'Gasto')}</p>
+                  <p className="font-medium truncate">{isTransferTx ? "Transferencia" : tx.category?.name || (tx.type === 'income' ? 'Ingreso' : 'Gasto')}</p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                    <span>{accountName || "Sin cuenta"}</span>
+                    <span className="truncate">{isTransferTx ? transferRoute : accountName || "Sin cuenta"}</span>
                     <span>•</span>
                     <span>{format(parseISO(tx.transaction_date), "d MMM", { locale: es })}</span>
                   </div>
                 </div>
               </div>
-              <span className={`font-bold shrink-0 tabular-nums ${tx.type === 'income' ? 'text-primary' : 'text-destructive'}`}>
-                {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
+              <span className={`font-bold shrink-0 tabular-nums ${tx.type === 'income' ? 'text-primary' : isTransferTx ? 'text-muted-foreground' : 'text-destructive'}`}>
+                {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{formatCurrency(tx.amount)}
               </span>
             </div>
           )})}

@@ -197,7 +197,7 @@ export default function AccountsSettings() {
 
                 <div className="flex items-center gap-3">
                   <span className="font-bold tabular-nums">
-                    {formatCurrency(acc.initial_balance ?? 0)}
+                    {formatCurrency(acc.current_balance ?? acc.initial_balance ?? 0)}
                   </span>
 
                   <Switch

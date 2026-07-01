@@ -18,13 +18,38 @@ export function useAccounts() {
     queryKey: ["accounts", appUser?.household_id],
     queryFn: async () => {
       if (!appUser?.household_id) return [];
-      const { data, error } = await supabase
-        .from("accounts")
-        .select("*")
-        .eq("household_id", appUser.household_id)
-        .order("name");
-      if (error) throw toError(error);
-      return data ?? [];
+      const [
+        { data: accounts, error: accountsError },
+        { data: transactions, error: transactionsError },
+      ] = await Promise.all([
+        supabase
+          .from("accounts")
+          .select("*")
+          .eq("household_id", appUser.household_id)
+          .order("name"),
+        supabase
+          .from("transactions")
+          .select("type, amount, account_from_id, account_to_id")
+          .eq("household_id", appUser.household_id),
+      ]);
+      if (accountsError) throw toError(accountsError);
+      if (transactionsError) throw toError(transactionsError);
+
+      return (accounts ?? []).map(account => {
+        const txNet = (transactions ?? []).reduce((sum, tx) => {
+          const amount = Number(tx.amount || 0);
+          if (tx.type === "income" && tx.account_to_id === account.id) return sum + amount;
+          if (tx.type === "expense" && tx.account_from_id === account.id) return sum - amount;
+          if (tx.type === "transfer" && tx.account_from_id === account.id) return sum - amount;
+          if (tx.type === "transfer" && tx.account_to_id === account.id) return sum + amount;
+          return sum;
+        }, 0);
+
+        return {
+          ...account,
+          current_balance: Number(account.initial_balance || 0) + txNet,
+        };
+      });
     },
     enabled: !!appUser?.household_id,
   });

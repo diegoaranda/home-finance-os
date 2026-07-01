@@ -10,10 +10,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   ArrowDownRight, ArrowUpRight, CalendarClock,
-  CreditCard, ChevronRight, CheckCircle2, AlertCircle
+  CreditCard, ChevronRight, CheckCircle2, AlertCircle, ArrowLeftRight
 } from "lucide-react";
 import { Link } from "wouter";
-import { format, startOfMonth } from "date-fns";
+import { format, parseISO, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default function Dashboard() {
@@ -212,30 +212,36 @@ export default function Dashboard() {
 
         {recentTx.length > 0 ? (
           <div className="space-y-3">
-            {recentTx.map(tx => (
+            {recentTx.map(tx => {
+              const isTransfer = tx.type === "transfer";
+              const transferRoute = `${tx.account_from?.name || "Sin origen"} -> ${tx.account_to?.name || "Sin destino"}`;
+              const formattedDate = format(parseISO(tx.transaction_date), "d MMM, yyyy", { locale: es });
+              return (
               <div
                 key={tx.id}
                 className="flex items-center justify-between p-3 rounded-2xl bg-card shadow-sm border border-border/50"
                 data-testid={`row-transaction-${tx.id}`}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === "income" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === "income" ? "bg-primary/10 text-primary" : tx.type === "expense" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
                     {tx.type === "income"
                       ? <ArrowDownRight className="w-5 h-5" />
-                      : <ArrowUpRight className="w-5 h-5" />}
+                      : isTransfer
+                        ? <ArrowLeftRight className="w-5 h-5" />
+                        : <ArrowUpRight className="w-5 h-5" />}
                   </div>
                   <div>
-                    <p className="font-medium text-sm">{tx.description || tx.category?.name || "Transacción"}</p>
+                    <p className="font-medium text-sm">{isTransfer ? "Transferencia" : tx.description || tx.category?.name || "Transacción"}</p>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(tx.transaction_date), "d MMM, yyyy", { locale: es })}
+                      {isTransfer ? `${transferRoute} · ${formattedDate}` : formattedDate}
                     </p>
                   </div>
                 </div>
-                <span className={`font-semibold ${tx.type === "income" ? "text-primary" : ""}`}>
-                  {tx.type === "income" ? "+" : "-"}{formatCurrency(tx.amount)}
+                <span className={`font-semibold ${tx.type === "income" ? "text-primary" : tx.type === "expense" ? "text-destructive" : "text-muted-foreground"}`}>
+                  {tx.type === "income" ? "+" : tx.type === "expense" ? "-" : ""}{formatCurrency(tx.amount)}
                 </span>
               </div>
-            ))}
+            )})}
           </div>
         ) : (
           <div className="text-center p-8 bg-card rounded-2xl border-none shadow-sm">

@@ -262,22 +262,24 @@ export default function RecurringSettings() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="font-bold tabular-nums">{formatCurrency(task.amount)}</span>
-                    <Badge variant={task._paidThisMonth ? "secondary" : "outline"} className="text-xs shrink-0">
-                      {task._paidThisMonth ? "Pagado" : "Pendiente"}
-                    </Badge>
+                    {task._paidThisMonth && (
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        Pagado
+                      </Badge>
+                    )}
                     {task.active && !task._paidThisMonth && (
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-8 rounded-full text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground"
+                        className="h-8 rounded-full px-3 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground"
                         onClick={() => handleMarkPaid(task)}
                         disabled={markAsPaid.isPending}
                         data-testid={`button-paid-${task.id}`}
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Marcar pagado
+                        Pagar
                       </Button>
                     )}
                   </div>
