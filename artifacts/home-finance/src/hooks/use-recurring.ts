@@ -1,6 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
+
+function toError(e: unknown): Error {
+  if (e instanceof Error) return e;
+  if (e && typeof e === "object" && "message" in e) {
+    return new Error(String((e as any).message));
+  }
+  return new Error(String(e));
+}
 
 export function useRecurring() {
   const { appUser } = useAuth();
@@ -12,12 +21,11 @@ export function useRecurring() {
       if (!appUser?.household_id) return [];
       const { data, error } = await supabase
         .from("recurring_tasks")
-        .select("*, category:categories(*)")
+        .select("*, category:categories(*), account:accounts(*)")
         .eq("household_id", appUser.household_id)
         .order("due_day", { ascending: true });
-      
-      if (error) throw error;
-      return data;
+      if (error) throw toError(error);
+      return data ?? [];
     },
     enabled: !!appUser?.household_id,
   });
@@ -26,10 +34,14 @@ export function useRecurring() {
     mutationFn: async (newTask: any) => {
       const { data, error } = await supabase
         .from("recurring_tasks")
-        .insert([{ ...newTask, household_id: appUser?.household_id }])
+        .insert([{
+          ...newTask,
+          task_type: "expense",
+          household_id: appUser?.household_id,
+        }])
         .select()
         .single();
-      if (error) throw error;
+      if (error) throw toError(error);
       return data;
     },
     onSuccess: () => {
@@ -46,7 +58,7 @@ export function useRecurring() {
         .eq("household_id", appUser?.household_id)
         .select()
         .single();
-      if (error) throw error;
+      if (error) throw toError(error);
       return result;
     },
     onSuccess: () => {
@@ -61,10 +73,36 @@ export function useRecurring() {
         .delete()
         .eq("id", id)
         .eq("household_id", appUser?.household_id);
-      if (error) throw error;
+      if (error) throw toError(error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recurring", appUser?.household_id] });
+    },
+  });
+
+  // Mark a recurring task as paid:
+  // 1. Creates an expense transaction
+  // 2. Invalidates recurring + transaction + dashboard queries
+  const markAsPaid = useMutation({
+    mutationFn: async (task: any) => {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const { error } = await supabase
+        .from("transactions")
+        .insert([{
+          household_id: appUser?.household_id,
+          type: "expense",
+          amount: task.amount,
+          description: task.title,
+          transaction_date: today,
+          account_from_id: task.account_id ?? null,
+          category_id: task.category_id ?? null,
+        }]);
+      if (error) throw toError(error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recurring", appUser?.household_id] });
+      queryClient.invalidateQueries({ queryKey: ["transactions", appUser?.household_id] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", appUser?.household_id] });
     },
   });
 
@@ -74,5 +112,6 @@ export function useRecurring() {
     createRecurring,
     updateRecurring,
     deleteRecurring,
+    markAsPaid,
   };
 }
