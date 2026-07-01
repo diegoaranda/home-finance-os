@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Home Finance OS"
+version = "1.0.0"
+id = "artifacts/home-finance"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20444
+
+[services.development]
+run = "pnpm --filter @workspace/home-finance run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/home-finance", "run", "build" ]
+publicDir = "artifacts/home-finance/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20444"
+BASE_PATH = "/"

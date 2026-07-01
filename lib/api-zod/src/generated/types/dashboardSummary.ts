@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface DashboardSummary {
+  total_balance: number;
+  monthly_income: number;
+  monthly_expenses: number;
+  net: number;
 }

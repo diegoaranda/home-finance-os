@@ -3,20 +3,31 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Home Finance OS API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: accounts
+    description: Account operations
+  - name: transactions
+    description: Transaction operations
+  - name: recurring
+    description: Recurring task operations
+  - name: categories
+    description: Category operations
+  - name: savings
+    description: Savings goal operations
+  - name: dashboard
+    description: Dashboard summary operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +35,265 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /accounts:
+    get:
+      operationId: getAccounts
+      tags: [accounts]
+      summary: List all accounts
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Account"
+    post:
+      operationId: createAccount
+      tags: [accounts]
+      summary: Create a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountInput"
+      responses:
+        "201":
+          description: Created account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+
+  /accounts/{id}:
+    patch:
+      operationId: updateAccount
+      tags: [accounts]
+      summary: Update an account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountUpdate"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+    delete:
+      operationId: deleteAccount
+      tags: [accounts]
+      summary: Delete an account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /transactions:
+    get:
+      operationId: getTransactions
+      tags: [transactions]
+      summary: List transactions
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+    post:
+      operationId: createTransaction
+      tags: [transactions]
+      summary: Create a transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionInput"
+      responses:
+        "201":
+          description: Created transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /transactions/{id}:
+    delete:
+      operationId: deleteTransaction
+      tags: [transactions]
+      summary: Delete a transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /recurring:
+    get:
+      operationId: getRecurringTasks
+      tags: [recurring]
+      summary: List recurring tasks
+      responses:
+        "200":
+          description: List of recurring tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecurringTask"
+    post:
+      operationId: createRecurringTask
+      tags: [recurring]
+      summary: Create a recurring task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecurringTaskInput"
+      responses:
+        "201":
+          description: Created recurring task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecurringTask"
+
+  /recurring/{id}:
+    patch:
+      operationId: updateRecurringTask
+      tags: [recurring]
+      summary: Update a recurring task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecurringTaskUpdate"
+      responses:
+        "200":
+          description: Updated recurring task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecurringTask"
+    delete:
+      operationId: deleteRecurringTask
+      tags: [recurring]
+      summary: Delete a recurring task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /categories:
+    get:
+      operationId: getCategories
+      tags: [categories]
+      summary: List categories
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+  /savings-goals:
+    get:
+      operationId: getSavingsGoals
+      tags: [savings]
+      summary: List savings goals
+      responses:
+        "200":
+          description: List of savings goals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SavingsGoal"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary for current month
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/upcoming-payments:
+    get:
+      operationId: getUpcomingPayments
+      tags: [dashboard]
+      summary: Get upcoming recurring payments (max 5)
+      responses:
+        "200":
+          description: Upcoming payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UpcomingPayment"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +304,246 @@ components:
       required:
         - status
 
+    Account:
+      type: object
+      required: [id, name, type, current_balance]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        initial_balance:
+          type: ["number", "null"]
+        current_balance:
+          type: number
+        color:
+          type: ["string", "null"]
+        icon:
+          type: ["string", "null"]
+        active:
+          type: boolean
+        created_at:
+          type: ["string", "null"]
+
+    AccountInput:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        initial_balance:
+          type: number
+        color:
+          type: string
+        icon:
+          type: string
+        active:
+          type: boolean
+
+    AccountUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        initial_balance:
+          type: number
+        color:
+          type: string
+        icon:
+          type: string
+        active:
+          type: boolean
+
+    Transaction:
+      type: object
+      required: [id, type, amount, transaction_date]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        amount:
+          type: number
+        description:
+          type: ["string", "null"]
+        transaction_date:
+          type: string
+        account_from_id:
+          type: ["string", "null"]
+        account_to_id:
+          type: ["string", "null"]
+        category_id:
+          type: ["string", "null"]
+        category:
+          $ref: "#/components/schemas/Category"
+        account_from:
+          $ref: "#/components/schemas/Account"
+        account_to:
+          $ref: "#/components/schemas/Account"
+        created_at:
+          type: ["string", "null"]
+
+    TransactionInput:
+      type: object
+      required: [type, amount, transaction_date]
+      properties:
+        type:
+          type: string
+        amount:
+          type: number
+        description:
+          type: string
+        transaction_date:
+          type: string
+        account_from_id:
+          type: string
+        account_to_id:
+          type: string
+        category_id:
+          type: string
+
+    RecurringTask:
+      type: object
+      required: [id, title, amount, due_day]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        amount:
+          type: number
+        variable_amount:
+          type: boolean
+        due_day:
+          type: integer
+        category_id:
+          type: ["string", "null"]
+        account_id:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        active:
+          type: boolean
+        task_type:
+          type: string
+        frequency:
+          type: string
+        category:
+          $ref: "#/components/schemas/Category"
+        created_at:
+          type: ["string", "null"]
+
+    RecurringTaskInput:
+      type: object
+      required: [title, amount, due_day]
+      properties:
+        title:
+          type: string
+        amount:
+          type: number
+        variable_amount:
+          type: boolean
+        due_day:
+          type: integer
+        category_id:
+          type: string
+        account_id:
+          type: string
+        description:
+          type: string
+        active:
+          type: boolean
+
+    RecurringTaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        amount:
+          type: number
+        variable_amount:
+          type: boolean
+        due_day:
+          type: integer
+        category_id:
+          type: string
+        account_id:
+          type: string
+        description:
+          type: string
+        active:
+          type: boolean
+
+    Category:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        icon:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+        type:
+          type: ["string", "null"]
+
+    SavingsGoal:
+      type: object
+      required: [id, name, target_amount]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        target_amount:
+          type: number
+        current_amount:
+          type: ["number", "null"]
+        deadline:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        icon:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+
+    DashboardSummary:
+      type: object
+      required: [total_balance, monthly_income, monthly_expenses, net]
+      properties:
+        total_balance:
+          type: number
+        monthly_income:
+          type: number
+        monthly_expenses:
+          type: number
+        net:
+          type: number
+
+    UpcomingPayment:
+      type: object
+      required: [id, title, amount, due_day, status]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        amount:
+          type: number
+        variable_amount:
+          type: boolean
+        due_day:
+          type: integer
+        status:
+          type: string
+        category:
+          $ref: "#/components/schemas/Category"
