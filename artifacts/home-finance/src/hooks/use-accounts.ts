@@ -31,14 +31,18 @@ export function useAccounts() {
 
   const createAccount = useMutation({
     mutationFn: async (newAccount: any) => {
+      console.log("STEP 9 - mutationFn entered, newAccount:", JSON.stringify(newAccount));
+      console.log("STEP 10 - appUser:", JSON.stringify(appUser));
       const initial = parseFloat(newAccount.initial_balance) || 0;
+      const insertPayload = {
+        ...newAccount,
+        initial_balance: initial,
+        household_id: appUser?.household_id,
+      };
+      console.log("INSERT PAYLOAD", JSON.stringify(insertPayload));
       const { data, error } = await supabase
         .from("accounts")
-        .insert([{
-          ...newAccount,
-          initial_balance: initial,
-          household_id: appUser?.household_id,
-        }])
+        .insert([insertPayload])
         .select()
         .single();
       if (error) {

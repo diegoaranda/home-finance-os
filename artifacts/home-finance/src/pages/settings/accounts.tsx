@@ -94,7 +94,12 @@ export default function AccountsSettings() {
   };
 
   const onSubmit = async (e: React.FormEvent) => {
+    console.log("STEP 1 - onSubmit fired");
     e.preventDefault();
+    console.log("STEP 2 - preventDefault called");
+    console.log("STEP 3 - form state:", JSON.stringify(form));
+    console.log("STEP 4 - editingId:", editingId);
+
     const payload = {
       name: form.name.trim(),
       type: form.type,
@@ -104,14 +109,20 @@ export default function AccountsSettings() {
       active: form.active,
     };
 
+    console.log("STEP 5 - payload built:", JSON.stringify(payload));
+
     try {
       if (editingId) {
+        console.log("STEP 6a - calling updateAccount.mutateAsync");
         await updateAccount.mutateAsync({ id: editingId, data: payload });
       } else {
+        console.log("STEP 6b - calling createAccount.mutateAsync");
         await createAccount.mutateAsync(payload);
       }
+      console.log("STEP 7 - mutateAsync resolved, calling handleClose");
       handleClose();
     } catch (err: any) {
+      console.log("STEP 8 - caught error:", err?.message, err);
       toast({
         title: "Error al guardar",
         description: err?.message ?? "No se pudo guardar la cuenta.",
