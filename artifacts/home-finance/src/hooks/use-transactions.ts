@@ -14,7 +14,8 @@ export function useTransactions() {
         .from("transactions")
         .select("*, category:categories(*), account_from:accounts!account_from_id(*), account_to:accounts!account_to_id(*)")
         .eq("household_id", appUser.household_id)
-        .order("transaction_date", { ascending: false });
+        .order("transaction_date", { ascending: false })
+        .order("created_at", { ascending: false });
       
       if (error) throw error;
       return data;
@@ -34,6 +35,7 @@ export function useTransactions() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions", appUser?.household_id] });
+      queryClient.invalidateQueries({ queryKey: ["accounts", appUser?.household_id] });
       queryClient.invalidateQueries({ queryKey: ["dashboard", appUser?.household_id] });
     },
   });

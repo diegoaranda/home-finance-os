@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTransactions } from "@/hooks/use-transactions";
 import { formatCurrency } from "@/lib/currency";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { Plus, ArrowDownRight, ArrowUpRight, Search, ListOrdered } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,32 +32,49 @@ export default function Transactions() {
   const [accountId, setAccountId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const amountValue = parseFloat(amount);
+  const isValid = amountValue > 0 && !!accountId && !!categoryId && !!date;
 
   const filteredTx = transactions.filter(tx => {
     if (filter !== "all" && tx.type !== filter) return false;
-    if (search && !tx.description?.toLowerCase().includes(search.toLowerCase()) && !tx.category?.name.toLowerCase().includes(search.toLowerCase())) return false;
+    const query = search.toLowerCase();
+    const matchesDescription = tx.description?.toLowerCase().includes(query);
+    const matchesCategory = tx.category?.name?.toLowerCase().includes(query);
+    const matchesAccount = (tx.type === "income" ? tx.account_to?.name : tx.account_from?.name)?.toLowerCase().includes(query);
+    if (search && !matchesDescription && !matchesCategory && !matchesAccount) return false;
     return true;
   });
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || !accountId) return;
+    if (!isValid) {
+      toast({
+        variant: "destructive",
+        title: "Faltan datos",
+        description: "Seleccione tipo, cuenta, categoría, monto mayor a cero y fecha.",
+      });
+      return;
+    }
 
     setSaving(true);
     try {
       await createTransaction.mutateAsync({
         type,
-        amount: parseFloat(amount),
-        description,
+        amount: amountValue,
+        description: description.trim() || null,
         account_from_id: type === "expense" ? accountId : null,
         account_to_id: type === "income" ? accountId : null,
-        category_id: categoryId || null,
+        category_id: categoryId,
         transaction_date: date,
+        recurring_task_id: null,
       });
       setOpen(false);
       // Reset form
       setAmount("");
       setDescription("");
+      setAccountId("");
+      setCategoryId("");
+      setDate(new Date().toISOString().split('T')[0]);
       toast({ title: "Movimiento registrado" });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -72,7 +89,7 @@ export default function Transactions() {
         <h1 className="text-2xl font-bold tracking-tight">Movimientos</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="icon" className="h-10 w-10 rounded-full shadow-lg">
+            <Button size="icon" className="h-10 w-10 rounded-full shadow-lg" data-testid="button-add-transaction">
               <Plus className="h-5 w-5" />
             </Button>
           </DialogTrigger>
@@ -82,23 +99,23 @@ export default function Transactions() {
             </DialogHeader>
             <form onSubmit={onSubmit} className="space-y-4 pt-4">
               <div className="grid grid-cols-2 gap-2">
-                <Button type="button" variant={type === "expense" ? "default" : "outline"} onClick={() => setType("expense")} className={type === "expense" ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : ""}>
+                <Button type="button" variant={type === "expense" ? "default" : "outline"} onClick={() => { setType("expense"); setCategoryId(""); }} className={type === "expense" ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : ""} data-testid="button-transaction-expense">
                   Gasto
                 </Button>
-                <Button type="button" variant={type === "income" ? "default" : "outline"} onClick={() => setType("income")}>
+                <Button type="button" variant={type === "income" ? "default" : "outline"} onClick={() => { setType("income"); setCategoryId(""); }} data-testid="button-transaction-income">
                   Ingreso
                 </Button>
               </div>
 
               <div className="space-y-2">
                 <Label>Monto (Bs)</Label>
-                <Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} required placeholder="0.00" className="text-lg" />
+                <Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} required placeholder="0.00" className="text-lg" data-testid="input-transaction-amount" />
               </div>
 
               <div className="space-y-2">
                 <Label>Cuenta</Label>
                 <Select value={accountId} onValueChange={setAccountId} required>
-                  <SelectTrigger><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger>
+                  <SelectTrigger data-testid="select-transaction-account"><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger>
                   <SelectContent>
                     {accounts.map(acc => (
                       <SelectItem key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.initial_balance ?? 0)})</SelectItem>
@@ -108,9 +125,9 @@ export default function Transactions() {
               </div>
 
               <div className="space-y-2">
-                <Label>Categoría (Opcional)</Label>
+                <Label>Categoría</Label>
                 <Select value={categoryId} onValueChange={setCategoryId}>
-                  <SelectTrigger><SelectValue placeholder="Sin categoría" /></SelectTrigger>
+                  <SelectTrigger data-testid="select-transaction-category"><SelectValue placeholder="Selecciona una categoría" /></SelectTrigger>
                   <SelectContent>
                     {categories.filter(c => !c.type || c.type === type).map(cat => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
@@ -121,15 +138,15 @@ export default function Transactions() {
 
               <div className="space-y-2">
                 <Label>Fecha</Label>
-                <Input type="date" value={date} onChange={e => setDate(e.target.value)} required />
+                <Input type="date" value={date} onChange={e => setDate(e.target.value)} required data-testid="input-transaction-date" />
               </div>
 
               <div className="space-y-2">
                 <Label>Descripción (Opcional)</Label>
-                <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Ej. Compra súper" />
+                <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Ej. Compra súper" data-testid="input-transaction-description" />
               </div>
 
-              <Button type="submit" className="w-full" disabled={saving}>
+              <Button type="submit" className="w-full" disabled={saving || !isValid} data-testid="button-submit-transaction">
                 {saving ? "Guardando..." : "Guardar"}
               </Button>
             </form>
@@ -163,26 +180,28 @@ export default function Transactions() {
         </div>
       ) : filteredTx.length > 0 ? (
         <div className="space-y-3">
-          {filteredTx.map((tx) => (
-            <div key={tx.id} className="flex items-center justify-between p-4 rounded-2xl bg-card shadow-sm border border-border/40">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${tx.type === 'income' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+          {filteredTx.map((tx) => {
+            const accountName = tx.type === "income" ? tx.account_to?.name : tx.account_from?.name;
+            return (
+            <div key={tx.id} className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-card shadow-sm border border-border/40">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${tx.type === 'income' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}>
                   {tx.type === 'income' ? <ArrowDownRight className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
                 </div>
-                <div>
-                  <p className="font-medium">{tx.description || tx.category?.name || (tx.type === 'income' ? 'Ingreso' : 'Gasto')}</p>
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{tx.category?.name || (tx.type === 'income' ? 'Ingreso' : 'Gasto')}</p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                    <span>{format(new Date(tx.transaction_date), "d MMM", { locale: es })}</span>
+                    <span>{accountName || "Sin cuenta"}</span>
                     <span>•</span>
-                    <span>{tx.type === 'income' ? tx.account_to?.name : tx.account_from?.name}</span>
+                    <span>{format(parseISO(tx.transaction_date), "d MMM", { locale: es })}</span>
                   </div>
                 </div>
               </div>
-              <span className={`font-bold ${tx.type === 'income' ? 'text-primary' : ''}`}>
+              <span className={`font-bold shrink-0 tabular-nums ${tx.type === 'income' ? 'text-primary' : 'text-destructive'}`}>
                 {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
               </span>
             </div>
-          ))}
+          )})}
         </div>
       ) : (
         <div className="text-center p-12 bg-card rounded-3xl border-none shadow-sm">
