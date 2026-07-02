@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDashboard } from "@/hooks/use-dashboard";
 import { useTransactions } from "@/hooks/use-transactions";
 import { useRecurring } from "@/hooks/use-recurring";
+import { useBudgets } from "@/hooks/use-budgets";
 import { useToast } from "@/hooks/use-toast";
 import { getGreeting } from "@/lib/greeting";
 import { formatCurrency } from "@/lib/currency";
@@ -10,21 +11,67 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   ArrowDownRight, ArrowUpRight, CalendarClock,
-  CreditCard, ChevronRight, CheckCircle2, AlertCircle, ArrowLeftRight
+  CreditCard, ChevronRight, CheckCircle2, AlertCircle, ArrowLeftRight,
+  Lightbulb, PieChart, TrendingUp
 } from "lucide-react";
 import { Link } from "wouter";
 import { format, parseISO, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 
+type CategorySpend = {
+  name: string;
+  amount: number;
+};
+
+function getBudgetAmount(budget: any) {
+  return Number(budget.amount ?? budget.budgeted_amount ?? 0);
+}
+
+function getBudgetStatus(usedPercent: number) {
+  if (usedPercent > 100) return { label: "Excedido", text: "text-destructive" };
+  if (usedPercent >= 80) return { label: "Cerca del límite", text: "text-amber-600" };
+  return { label: "Normal", text: "text-primary" };
+}
+
+function getMonthlyInsight({
+  alerts,
+  topCategory,
+  monthlyIncome,
+  monthlyExpenses,
+}: {
+  alerts: any[];
+  topCategory?: { name: string; amount: number };
+  monthlyIncome: number;
+  monthlyExpenses: number;
+}) {
+  if (alerts.some(alert => alert.usedPercent > 100)) {
+    return "Hay presupuestos excedidos este mes.";
+  }
+  if (alerts.length > 0) {
+    return "Hay presupuestos cerca del límite.";
+  }
+  if (topCategory) {
+    return `El mayor gasto del mes está en ${topCategory.name}.`;
+  }
+  if (monthlyIncome > monthlyExpenses && monthlyIncome > 0) {
+    return "Este mes los ingresos superan los gastos.";
+  }
+  return "Registra movimientos para generar mejores insights del mes.";
+}
+
 export default function Dashboard() {
   const { appUser } = useAuth();
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
   const { dashboard, isLoading: loadingDash } = useDashboard();
   const { transactions, isLoading: loadingTx } = useTransactions();
   const { recurringTasks, isLoading: loadingRec, markAsPaid } = useRecurring();
+  const { budgets, isLoading: loadingBudgets } = useBudgets(currentMonth, currentYear);
   const { toast } = useToast();
   const [payingId, setPayingId] = useState<string | null>(null);
 
-  if (loadingDash || loadingTx || loadingRec) {
+  if (loadingDash || loadingTx || loadingRec || loadingBudgets) {
     return (
       <div className="p-6 space-y-4 animate-pulse">
         <div className="h-8 w-48 bg-muted rounded" />
@@ -38,11 +85,54 @@ export default function Dashboard() {
     );
   }
 
-  const now = new Date();
   const today = now.getDate();
   const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const monthEnd = format(nextMonth, "yyyy-MM-dd");
+  const monthTransactions = transactions.filter(tx =>
+    tx.transaction_date >= monthStart &&
+    tx.transaction_date < monthEnd
+  );
+  const monthlyIncome = monthTransactions.reduce((sum, tx) => (
+    tx.type === "income" ? sum + Number(tx.amount || 0) : sum
+  ), 0);
+  const monthlyExpenses = monthTransactions.reduce((sum, tx) => (
+    tx.type === "expense" ? sum + Number(tx.amount || 0) : sum
+  ), 0);
+  const monthlyBalance = monthlyIncome - monthlyExpenses;
+  const expenseRatio = monthlyIncome > 0 ? (monthlyExpenses / monthlyIncome) * 100 : monthlyExpenses > 0 ? 100 : 0;
+  const spentByCategory = monthTransactions.reduce((totals: Record<string, CategorySpend>, tx) => {
+    if (tx.type !== "expense" || !tx.category_id) return totals;
+    const categoryName = tx.category?.name || "Sin categoría";
+    if (!totals[tx.category_id]) totals[tx.category_id] = { name: categoryName, amount: 0 };
+    totals[tx.category_id].amount += Number(tx.amount || 0);
+    return totals;
+  }, {});
+  const topExpenseCategories = (Object.values(spentByCategory) as CategorySpend[])
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5);
+  const budgetAlerts = budgets
+    .map(budget => {
+      const budgeted = getBudgetAmount(budget);
+      const spent = spentByCategory[budget.category_id]?.amount || 0;
+      const usedPercent = budgeted > 0 ? (spent / budgeted) * 100 : 0;
+      return {
+        ...budget,
+        budgeted,
+        spent,
+        usedPercent,
+        status: getBudgetStatus(usedPercent),
+      };
+    })
+    .filter(budget => budget.usedPercent >= 80)
+    .sort((a, b) => b.usedPercent - a.usedPercent)
+    .slice(0, 5);
+  const monthlyInsight = getMonthlyInsight({
+    alerts: budgetAlerts,
+    topCategory: topExpenseCategories[0],
+    monthlyIncome,
+    monthlyExpenses,
+  });
   const paidTaskIds = new Set(
     transactions
       .filter(tx =>
@@ -104,8 +194,13 @@ export default function Dashboard() {
         </Card>
       </section>
 
-      {/* Income / Expenses */}
-      <section className="grid grid-cols-2 gap-4">
+      {/* Monthly summary */}
+      <section className="space-y-3">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-muted-foreground" />
+          Resumen del mes
+        </h3>
+        <div className="grid grid-cols-2 gap-4">
         <Card className="rounded-2xl border-none shadow-sm bg-card">
           <CardContent className="p-5">
             <div className="flex items-center gap-2 text-muted-foreground mb-3">
@@ -115,7 +210,7 @@ export default function Dashboard() {
               <span className="text-sm font-medium">Ingresos</span>
             </div>
             <p className="text-xl font-bold" data-testid="text-monthly-income">
-              {formatCurrency(dashboard?.income || 0)}
+              {formatCurrency(monthlyIncome)}
             </p>
           </CardContent>
         </Card>
@@ -128,11 +223,97 @@ export default function Dashboard() {
               <span className="text-sm font-medium">Gastos</span>
             </div>
             <p className="text-xl font-bold" data-testid="text-monthly-expenses">
-              {formatCurrency(dashboard?.expenses || 0)}
+              {formatCurrency(monthlyExpenses)}
             </p>
           </CardContent>
         </Card>
+        <Card className="rounded-2xl border-none shadow-sm bg-card">
+          <CardContent className="p-5">
+            <p className="text-sm text-muted-foreground mb-3">Balance mensual</p>
+            <p className={`text-xl font-bold tabular-nums ${monthlyBalance < 0 ? "text-destructive" : "text-primary"}`}>
+              {formatCurrency(monthlyBalance)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-none shadow-sm bg-card">
+          <CardContent className="p-5">
+            <p className="text-sm text-muted-foreground mb-3">Gastos / ingresos</p>
+            <p className={`text-xl font-bold tabular-nums ${expenseRatio >= 80 ? "text-destructive" : "text-foreground"}`}>
+              {expenseRatio.toFixed(0)}%
+            </p>
+          </CardContent>
+        </Card>
+        </div>
       </section>
+
+      <section>
+        <Card className="rounded-2xl border-none shadow-sm bg-card">
+          <CardContent className="p-5 flex gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Lightbulb className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="font-semibold mb-1">Insight del mes</p>
+              <p className="text-sm text-muted-foreground">{monthlyInsight}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {budgetAlerts.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-muted-foreground" />
+              Presupuestos en alerta
+            </h3>
+            <Link href="/settings/budgets">
+              <span className="text-sm font-medium text-primary flex items-center cursor-pointer">
+                Ver <ChevronRight className="w-4 h-4 ml-1" />
+              </span>
+            </Link>
+          </div>
+
+          <Card className="rounded-2xl border-none shadow-sm bg-card overflow-hidden">
+            <div className="divide-y divide-border/50">
+              {budgetAlerts.map(budget => (
+                <div key={budget.id} className="p-4 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{budget.category?.name || "Sin categoría"}</p>
+                    <p className={`text-xs font-medium ${budget.status.text}`}>
+                      {budget.status.label} · {budget.usedPercent.toFixed(0)}% usado
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-semibold tabular-nums">{formatCurrency(budget.spent)}</p>
+                    <p className="text-xs text-muted-foreground">de {formatCurrency(budget.budgeted)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </section>
+      )}
+
+      {topExpenseCategories.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <PieChart className="w-5 h-5 text-muted-foreground" />
+            Top gastos por categoría
+          </h3>
+
+          <Card className="rounded-2xl border-none shadow-sm bg-card overflow-hidden">
+            <div className="divide-y divide-border/50">
+              {topExpenseCategories.map(category => (
+                <div key={category.name} className="p-4 flex items-center justify-between gap-3">
+                  <p className="font-medium truncate">{category.name}</p>
+                  <span className="font-semibold text-destructive tabular-nums">{formatCurrency(category.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </section>
+      )}
 
       {/* Upcoming payments */}
       {sortedPayments.length > 0 && (
