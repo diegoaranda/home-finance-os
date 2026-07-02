@@ -21,9 +21,14 @@ function getTodayInputValue() {
 }
 
 type TransactionKind = "expense" | "income" | "transfer";
+const QUICK_TRANSACTION_TYPE_KEY = "home-finance:quick-transaction-type";
+
+function isTransactionKind(value: string | null): value is TransactionKind {
+  return value === "expense" || value === "income" || value === "transfer";
+}
 
 export default function Transactions() {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
   const { transactions, isLoading, createTransaction, updateTransaction, deleteTransaction } = useTransactions();
   const { accounts } = useAccounts();
   const { categories } = useCategories();
@@ -45,6 +50,7 @@ export default function Transactions() {
   const [accountToId, setAccountToId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [date, setDate] = useState(getTodayInputValue);
+  const [searchParams, setSearchParams] = useState(() => window.location.search);
   const amountValue = parseFloat(amount);
   const isTransfer = type === "transfer";
   const isValid = isTransfer
@@ -161,12 +167,52 @@ export default function Transactions() {
   };
 
   useEffect(() => {
-    const typeParam = new URLSearchParams(window.location.search).get("type");
-    if (typeParam === "expense" || typeParam === "income" || typeParam === "transfer") {
-      openCreate(typeParam);
+    const syncSearchParams = () => setSearchParams(window.location.search);
+    const originalPushState = window.history.pushState;
+    const originalReplaceState = window.history.replaceState;
+
+    const patchedPushState = function pushState(this: History, ...args: Parameters<typeof window.history.pushState>) {
+      const result = originalPushState.apply(this, args);
+      window.dispatchEvent(new Event("locationchange"));
+      return result;
+    };
+
+    const patchedReplaceState = function replaceState(this: History, ...args: Parameters<typeof window.history.replaceState>) {
+      const result = originalReplaceState.apply(this, args);
+      window.dispatchEvent(new Event("locationchange"));
+      return result;
+    };
+
+    window.history.pushState = patchedPushState;
+    window.history.replaceState = patchedReplaceState;
+
+    window.addEventListener("popstate", syncSearchParams);
+    window.addEventListener("locationchange", syncSearchParams);
+    syncSearchParams();
+
+    return () => {
+      window.removeEventListener("popstate", syncSearchParams);
+      window.removeEventListener("locationchange", syncSearchParams);
+      if (window.history.pushState === patchedPushState) {
+        window.history.pushState = originalPushState;
+      }
+      if (window.history.replaceState === patchedReplaceState) {
+        window.history.replaceState = originalReplaceState;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const typeParam = new URLSearchParams(searchParams).get("type");
+    const storedType = window.sessionStorage.getItem(QUICK_TRANSACTION_TYPE_KEY);
+    const quickType = isTransactionKind(typeParam) ? typeParam : storedType;
+
+    if (isTransactionKind(quickType)) {
+      window.sessionStorage.removeItem(QUICK_TRANSACTION_TYPE_KEY);
+      openCreate(quickType);
       navigate("/transactions", { replace: true });
     }
-  }, [location, navigate]);
+  }, [searchParams, navigate]);
 
   return (
     <div className="p-6 space-y-6 pb-24">

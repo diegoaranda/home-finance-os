@@ -25,6 +25,12 @@ type CategorySpend = {
   amount: number;
 };
 
+const QUICK_TRANSACTION_TYPE_KEY = "home-finance:quick-transaction-type";
+
+function rememberQuickTransactionType(type: "expense" | "income" | "transfer") {
+  window.sessionStorage.setItem(QUICK_TRANSACTION_TYPE_KEY, type);
+}
+
 function getBudgetAmount(budget: any) {
   return Number(budget.amount ?? budget.budgeted_amount ?? 0);
 }
@@ -188,6 +194,11 @@ export default function Dashboard() {
 
   const recentTx = transactions.slice(0, 5);
 
+  const openQuickTransaction = (type: "expense" | "income" | "transfer") => {
+    rememberQuickTransactionType(type);
+    window.location.assign(`/transactions?type=${type}`);
+  };
+
   const handleMarkPaid = async (task: any) => {
     setPayingId(task.id);
     try {
@@ -267,24 +278,18 @@ export default function Dashboard() {
       <section className="space-y-3">
         <h3 className="text-lg font-semibold">Acciones rápidas</h3>
         <div className="grid grid-cols-3 gap-3">
-          <Link href="/transactions?type=expense">
-            <Button variant="outline" className="h-20 min-h-20 w-full rounded-2xl flex-col gap-2 border-destructive/30 text-destructive shadow-sm hover:bg-destructive hover:text-destructive-foreground" data-testid="button-quick-expense">
-              <Plus className="w-5 h-5" />
-              <span className="text-xs font-semibold">Gasto</span>
-            </Button>
-          </Link>
-          <Link href="/transactions?type=income">
-            <Button variant="outline" className="h-20 min-h-20 w-full rounded-2xl flex-col gap-2 border-primary/30 text-primary shadow-sm hover:bg-primary hover:text-primary-foreground" data-testid="button-quick-income">
-              <Plus className="w-5 h-5" />
-              <span className="text-xs font-semibold">Ingreso</span>
-            </Button>
-          </Link>
-          <Link href="/transactions?type=transfer">
-            <Button variant="outline" className="h-20 min-h-20 w-full rounded-2xl flex-col gap-2 border-muted-foreground/20 text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground" data-testid="button-quick-transfer">
-              <ArrowLeftRight className="w-5 h-5" />
-              <span className="text-xs font-semibold">Transferir</span>
-            </Button>
-          </Link>
+          <Button variant="outline" className="h-20 min-h-20 w-full rounded-2xl flex-col gap-2 border-destructive/30 text-destructive shadow-sm hover:bg-destructive hover:text-destructive-foreground" onClick={() => openQuickTransaction("expense")} data-testid="button-quick-expense">
+            <Plus className="w-5 h-5" />
+            <span className="text-xs font-semibold">Gasto</span>
+          </Button>
+          <Button variant="outline" className="h-20 min-h-20 w-full rounded-2xl flex-col gap-2 border-primary/30 text-primary shadow-sm hover:bg-primary hover:text-primary-foreground" onClick={() => openQuickTransaction("income")} data-testid="button-quick-income">
+            <Plus className="w-5 h-5" />
+            <span className="text-xs font-semibold">Ingreso</span>
+          </Button>
+          <Button variant="outline" className="h-20 min-h-20 w-full rounded-2xl flex-col gap-2 border-muted-foreground/20 text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground" onClick={() => openQuickTransaction("transfer")} data-testid="button-quick-transfer">
+            <ArrowLeftRight className="w-5 h-5" />
+            <span className="text-xs font-semibold">Transferir</span>
+          </Button>
         </div>
       </section>
 
