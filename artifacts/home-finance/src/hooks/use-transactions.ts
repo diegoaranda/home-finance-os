@@ -37,6 +37,8 @@ export function useTransactions() {
       queryClient.invalidateQueries({ queryKey: ["transactions", appUser?.household_id] });
       queryClient.invalidateQueries({ queryKey: ["accounts", appUser?.household_id] });
       queryClient.invalidateQueries({ queryKey: ["dashboard", appUser?.household_id] });
+      queryClient.invalidateQueries({ queryKey: ["reports", appUser?.household_id] });
+      queryClient.invalidateQueries({ queryKey: ["budgets", appUser?.household_id] });
     },
   });
 
@@ -57,6 +59,8 @@ export function useTransactions() {
       queryClient.invalidateQueries({ queryKey: ["accounts", appUser?.household_id] });
       queryClient.invalidateQueries({ queryKey: ["dashboard", appUser?.household_id] });
       queryClient.invalidateQueries({ queryKey: ["recurring", appUser?.household_id] });
+      queryClient.invalidateQueries({ queryKey: ["reports", appUser?.household_id] });
+      queryClient.invalidateQueries({ queryKey: ["budgets", appUser?.household_id] });
     },
   });
 
@@ -74,6 +78,8 @@ export function useTransactions() {
       queryClient.invalidateQueries({ queryKey: ["accounts", appUser?.household_id] });
       queryClient.invalidateQueries({ queryKey: ["dashboard", appUser?.household_id] });
       queryClient.invalidateQueries({ queryKey: ["recurring", appUser?.household_id] });
+      queryClient.invalidateQueries({ queryKey: ["reports", appUser?.household_id] });
+      queryClient.invalidateQueries({ queryKey: ["budgets", appUser?.household_id] });
     },
   });
 

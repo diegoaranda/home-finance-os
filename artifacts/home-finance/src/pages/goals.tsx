@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 
 function getGoalStats(goal: any) {
-  const current = Number(goal.current_amount || 0);
+  const current = 0;
   const target = Number(goal.target_amount || 0);
   const remaining = Math.max(target - current, 0);
   const percentage = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
@@ -43,7 +43,7 @@ function getDeadlineLabel(daysLeft: number | null) {
 }
 
 export default function Goals() {
-  const { goals, isLoading, createGoal, addProgress } = useSavingsGoals();
+  const { goals, isLoading, createGoal, addProgress, contributionsPendingMessage } = useSavingsGoals();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
   const [progressGoal, setProgressGoal] = useState<any | null>(null);
@@ -188,8 +188,12 @@ export default function Goals() {
                     <GoalMetric label="Estado" value={statusLabel} tone={statusTone} />
                   </div>
 
+                  <p className="rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground">
+                    {contributionsPendingMessage}
+                  </p>
+
                   {!stats.completed && (
-                    <Button variant="outline" className="w-full" onClick={() => openProgressDialog(goal)} data-testid={`button-add-goal-progress-${goal.id}`}>
+                    <Button variant="outline" className="w-full" disabled onClick={() => openProgressDialog(goal)} data-testid={`button-add-goal-progress-${goal.id}`}>
                       Agregar ahorro
                     </Button>
                   )}

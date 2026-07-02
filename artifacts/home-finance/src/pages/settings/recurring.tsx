@@ -104,12 +104,14 @@ export default function RecurringSettings() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const amount = parseFloat(form.amount) || 0;
+    const dueDay = parseInt(form.due_day) || 1;
     const payload: any = {
       title: form.title.trim(),
-      amount: parseFloat(form.amount) || 0,
+      amount,
       account_id: form.account_id || null,
       category_id: form.category_id || null,
-      due_day: parseInt(form.due_day) || 1,
+      due_day: dueDay,
       frequency: form.frequency,
       active: form.active,
     };
@@ -121,6 +123,15 @@ export default function RecurringSettings() {
       toast({
         title: "Cuenta requerida",
         description: "Seleccione una cuenta para este gasto fijo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!payload.title || payload.amount <= 0 || payload.due_day < 1 || payload.due_day > 31) {
+      toast({
+        title: "Datos inválidos",
+        description: "Ingrese nombre, monto mayor a cero y un día de vencimiento entre 1 y 31.",
         variant: "destructive",
       });
       return;
@@ -433,10 +444,10 @@ export default function RecurringSettings() {
               />
             </div>
 
-            <Button
+              <Button
               type="submit"
               className="w-full"
-              disabled={isPending || !form.title.trim() || !form.amount}
+              disabled={isPending || !form.title.trim() || (parseFloat(form.amount) || 0) <= 0}
               data-testid="button-submit-recurring"
             >
               {isPending ? "Guardando…" : "Guardar"}

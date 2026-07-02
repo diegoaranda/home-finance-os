@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTransactions } from "@/hooks/use-transactions";
 import { formatCurrency } from "@/lib/currency";
 import { format, parseISO } from "date-fns";
@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCategories } from "@/hooks/use-categories";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 function getTodayInputValue() {
   return format(new Date(), "yyyy-MM-dd");
@@ -22,6 +23,7 @@ function getTodayInputValue() {
 type TransactionKind = "expense" | "income" | "transfer";
 
 export default function Transactions() {
+  const [location, navigate] = useLocation();
   const { transactions, isLoading, createTransaction, updateTransaction, deleteTransaction } = useTransactions();
   const { accounts } = useAccounts();
   const { categories } = useCategories();
@@ -69,8 +71,9 @@ export default function Transactions() {
     setEditingTx(null);
   };
 
-  const openCreate = () => {
+  const openCreate = (initialType: TransactionKind = "expense") => {
     resetForm();
+    setType(initialType);
     setOpen(true);
   };
 
@@ -157,13 +160,21 @@ export default function Transactions() {
     }
   };
 
+  useEffect(() => {
+    const typeParam = new URLSearchParams(window.location.search).get("type");
+    if (typeParam === "expense" || typeParam === "income" || typeParam === "transfer") {
+      openCreate(typeParam);
+      navigate("/transactions", { replace: true });
+    }
+  }, [location, navigate]);
+
   return (
     <div className="p-6 space-y-6 pb-24">
       <header className="flex justify-between items-center">
         <h1 className="text-2xl font-bold tracking-tight">Movimientos</h1>
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
-            <Button size="icon" className="h-10 w-10 rounded-full shadow-lg" onClick={openCreate} data-testid="button-add-transaction">
+            <Button size="icon" className="h-10 w-10 rounded-full shadow-lg" onClick={() => openCreate()} data-testid="button-add-transaction">
               <Plus className="h-5 w-5" />
             </Button>
           </DialogTrigger>

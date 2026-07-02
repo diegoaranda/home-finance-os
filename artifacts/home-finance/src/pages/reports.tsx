@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
+import { endOfMonth, endOfYear, format, startOfMonth, startOfYear, subMonths, subYears } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   ArrowDownRight,
@@ -17,7 +17,7 @@ import { formatCurrency } from "@/lib/currency";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type PeriodKey = "current-month" | "previous-month" | "last-3-months";
+type PeriodKey = "current-month" | "last-3-months" | "last-6-months" | "current-year";
 
 type PeriodRange = {
   start: string;
@@ -48,21 +48,44 @@ type AccountTotal = {
   transfersOut: number;
 };
 
+type ExpenseAccountTotal = {
+  id: string;
+  name: string;
+  amount: number;
+  percentage: number;
+};
+
+type MonthlyTotal = {
+  key: string;
+  label: string;
+  income: number;
+  expenses: number;
+};
+
 function dateValue(date: Date) {
   return format(date, "yyyy-MM-dd");
 }
 
 function getPeriodRange(period: PeriodKey, offset = 0): PeriodRange {
   const now = new Date();
-  const base = subMonths(now, offset);
+  const base = period === "current-year" ? subYears(now, offset) : subMonths(now, offset);
 
-  if (period === "last-3-months") {
-    const endBase = subMonths(now, offset * 3);
-    const startBase = subMonths(endBase, 2);
+  if (period === "last-3-months" || period === "last-6-months") {
+    const monthCount = period === "last-3-months" ? 3 : 6;
+    const endBase = subMonths(now, offset * monthCount);
+    const startBase = subMonths(endBase, monthCount - 1);
     return {
       start: dateValue(startOfMonth(startBase)),
       end: dateValue(endOfMonth(endBase)),
       label: `${format(startOfMonth(startBase), "MMM yyyy", { locale: es })} - ${format(endOfMonth(endBase), "MMM yyyy", { locale: es })}`,
+    };
+  }
+
+  if (period === "current-year") {
+    return {
+      start: dateValue(startOfYear(base)),
+      end: dateValue(endOfYear(base)),
+      label: format(base, "yyyy", { locale: es }),
     };
   }
 
@@ -74,9 +97,10 @@ function getPeriodRange(period: PeriodKey, offset = 0): PeriodRange {
 }
 
 function getPreviousRange(period: PeriodKey) {
-  if (period === "current-month") return getPeriodRange("previous-month");
-  if (period === "previous-month") return getPeriodRange("previous-month", 1);
-  return getPeriodRange("last-3-months", 1);
+  if (period === "current-month") return getPeriodRange("current-month", 1);
+  if (period === "last-3-months") return getPeriodRange("last-3-months", 1);
+  if (period === "last-6-months") return getPeriodRange("last-6-months", 1);
+  return getPeriodRange("current-year", 1);
 }
 
 function inRange(tx: any, range: PeriodRange) {
@@ -157,6 +181,50 @@ function getAccountTotals(transactions: any[], accounts: any[]): AccountTotal[] 
     );
 }
 
+function getExpenseAccountTotals(transactions: any[], accounts: any[], totalExpenses: number): ExpenseAccountTotal[] {
+  return accounts
+    .map(account => {
+      const amount = transactions.reduce((sum, tx) => {
+        if (tx.type !== "expense") return sum;
+        if (tx.account_from_id === account.id || tx.account_id === account.id) {
+          return sum + Number(tx.amount || 0);
+        }
+        return sum;
+      }, 0);
+
+      return {
+        id: account.id,
+        name: account.name,
+        amount,
+        percentage: totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0,
+      };
+    })
+    .filter(account => account.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+}
+
+function getMonthlyTotals(transactions: any[]): MonthlyTotal[] {
+  const now = new Date();
+  return Array.from({ length: 6 }, (_, index) => {
+    const date = subMonths(now, 5 - index);
+    const range = {
+      start: dateValue(startOfMonth(date)),
+      end: dateValue(endOfMonth(date)),
+    };
+    const monthTransactions = transactions.filter(tx =>
+      tx.transaction_date >= range.start &&
+      tx.transaction_date <= range.end
+    );
+
+    return {
+      key: format(date, "yyyy-MM"),
+      label: format(date, "MMM", { locale: es }),
+      income: monthTransactions.reduce((sum, tx) => tx.type === "income" ? sum + Number(tx.amount || 0) : sum, 0),
+      expenses: monthTransactions.reduce((sum, tx) => tx.type === "expense" ? sum + Number(tx.amount || 0) : sum, 0),
+    };
+  });
+}
+
 function getVariation(current: number, previous: number) {
   const diff = current - previous;
   const percent = previous > 0 ? (diff / previous) * 100 : current > 0 ? 100 : 0;
@@ -199,7 +267,10 @@ export default function Reports() {
   const summary = summarize(currentTransactions);
   const previousSummary = summarize(previousTransactions);
   const categoryTotals = getCategoryTotals(currentTransactions, summary.expenses);
+  const expenseAccountTotals = getExpenseAccountTotals(currentTransactions, accounts, summary.expenses);
   const accountTotals = getAccountTotals(currentTransactions, accounts);
+  const monthlyTotals = getMonthlyTotals(transactions);
+  const maxMonthlyAmount = Math.max(...monthlyTotals.map(item => Math.max(item.income, item.expenses)), 1);
   const insight = getInsight({
     summary,
     previousSummary,
@@ -230,10 +301,11 @@ export default function Reports() {
       </header>
 
       <Tabs value={period} onValueChange={value => setPeriod(value as PeriodKey)}>
-        <TabsList className="grid w-full grid-cols-3 rounded-xl bg-card">
+        <TabsList className="grid w-full grid-cols-4 rounded-xl bg-card">
           <TabsTrigger value="current-month" className="rounded-lg text-xs">Este mes</TabsTrigger>
-          <TabsTrigger value="previous-month" className="rounded-lg text-xs">Mes anterior</TabsTrigger>
           <TabsTrigger value="last-3-months" className="rounded-lg text-xs">Últimos 3</TabsTrigger>
+          <TabsTrigger value="last-6-months" className="rounded-lg text-xs">Últimos 6</TabsTrigger>
+          <TabsTrigger value="current-year" className="rounded-lg text-xs">Año</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -296,6 +368,70 @@ export default function Reports() {
           </Card>
         ) : (
           <EmptyCard text="No hay gastos por categoría en este período." />
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <BarChart2 className="w-5 h-5 text-muted-foreground" />
+          Ingresos vs gastos
+        </h2>
+        <Card className="rounded-2xl border-none shadow-sm bg-card">
+          <CardContent className="p-5 space-y-4">
+            {monthlyTotals.map(month => {
+              const incomeWidth = `${Math.max((month.income / maxMonthlyAmount) * 100, month.income > 0 ? 4 : 0)}%`;
+              const expenseWidth = `${Math.max((month.expenses / maxMonthlyAmount) * 100, month.expenses > 0 ? 4 : 0)}%`;
+              return (
+                <div key={month.key} className="space-y-2">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="font-medium capitalize">{month.label}</span>
+                    <span className="text-muted-foreground">
+                      {formatCurrency(month.income - month.expenses)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[64px_1fr] gap-2 items-center">
+                    <span className="text-[11px] text-primary">Ingresos</span>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-primary" style={{ width: incomeWidth }} />
+                    </div>
+                    <span className="text-[11px] text-destructive">Gastos</span>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-destructive" style={{ width: expenseWidth }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <Wallet className="w-5 h-5 text-muted-foreground" />
+          Gastos por cuenta
+        </h2>
+        {expenseAccountTotals.length > 0 ? (
+          <Card className="rounded-2xl border-none shadow-sm bg-card overflow-hidden">
+            <div className="divide-y divide-border/50">
+              {expenseAccountTotals.map(account => (
+                <div key={account.id} className="p-4 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium truncate">{account.name}</p>
+                    <span className="font-semibold text-destructive tabular-nums">{formatCurrency(account.amount)}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-destructive" style={{ width: `${Math.min(account.percentage, 100)}%` }} />
+                    </div>
+                    <span className="text-xs text-muted-foreground w-12 text-right">{account.percentage.toFixed(0)}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : (
+          <EmptyCard text="No hay gastos por cuenta en este período." />
         )}
       </section>
 

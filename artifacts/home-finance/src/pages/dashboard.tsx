@@ -4,15 +4,17 @@ import { useDashboard } from "@/hooks/use-dashboard";
 import { useTransactions } from "@/hooks/use-transactions";
 import { useRecurring } from "@/hooks/use-recurring";
 import { useBudgets } from "@/hooks/use-budgets";
-import { useToast } from "@/hooks/use-toast";
+import { useFinanceAlerts, type FinanceAlertSeverity } from "@/hooks/use-finance-alerts";
+import { toast } from "@/hooks/use-toast";
 import { getGreeting } from "@/lib/greeting";
 import { formatCurrency } from "@/lib/currency";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ArrowDownRight, ArrowUpRight, CalendarClock,
   CreditCard, ChevronRight, CheckCircle2, AlertCircle, ArrowLeftRight,
-  Lightbulb, PieChart, TrendingUp
+  Lightbulb, TrendingUp, Plus
 } from "lucide-react";
 import { Link } from "wouter";
 import { format, parseISO, startOfMonth } from "date-fns";
@@ -59,6 +61,31 @@ function getMonthlyInsight({
   return "Registra movimientos para generar mejores insights del mes.";
 }
 
+function getAlertTone(severity: FinanceAlertSeverity) {
+  if (severity === "critical") {
+    return {
+      badge: "destructive" as const,
+      icon: "bg-destructive/10 text-destructive",
+      text: "text-destructive",
+      label: "Crítica",
+    };
+  }
+  if (severity === "warning") {
+    return {
+      badge: "secondary" as const,
+      icon: "bg-amber-500/10 text-amber-600",
+      text: "text-amber-600",
+      label: "Atención",
+    };
+  }
+  return {
+    badge: "outline" as const,
+    icon: "bg-muted text-muted-foreground",
+    text: "text-muted-foreground",
+    label: "Info",
+  };
+}
+
 export default function Dashboard() {
   const { user, appUser } = useAuth();
   const now = new Date();
@@ -68,7 +95,7 @@ export default function Dashboard() {
   const { transactions, isLoading: loadingTx } = useTransactions();
   const { recurringTasks, isLoading: loadingRec, markAsPaid } = useRecurring();
   const { budgets, isLoading: loadingBudgets } = useBudgets(currentMonth, currentYear);
-  const { toast } = useToast();
+  const { alerts, isLoading: loadingAlerts } = useFinanceAlerts();
   const [payingId, setPayingId] = useState<string | null>(null);
   const displayName =
     appUser?.name ||
@@ -76,7 +103,7 @@ export default function Dashboard() {
     user?.user_metadata?.name ||
     "usuario";
 
-  if (loadingDash || loadingTx || loadingRec || loadingBudgets) {
+  if (loadingDash || loadingTx || loadingRec || loadingBudgets || loadingAlerts) {
     return (
       <div className="p-6 space-y-4 animate-pulse">
         <div className="h-8 w-48 bg-muted rounded" />
@@ -105,7 +132,6 @@ export default function Dashboard() {
     tx.type === "expense" ? sum + Number(tx.amount || 0) : sum
   ), 0);
   const monthlyBalance = monthlyIncome - monthlyExpenses;
-  const expenseRatio = monthlyIncome > 0 ? (monthlyExpenses / monthlyIncome) * 100 : monthlyExpenses > 0 ? 100 : 0;
   const spentByCategory = monthTransactions.reduce((totals: Record<string, CategorySpend>, tx) => {
     if (tx.type !== "expense" || !tx.category_id) return totals;
     const categoryName = tx.category?.name || "Sin categoría";
@@ -156,7 +182,7 @@ export default function Dashboard() {
   const overdue  = pendingTasks.filter(t => t.due_day < today).sort((a, b) => a.due_day - b.due_day);
   const dueToday = pendingTasks.filter(t => t.due_day === today);
   const upcoming = pendingTasks.filter(t => t.due_day > today).sort((a, b) => a.due_day - b.due_day);
-  const sortedPayments = [...overdue, ...dueToday, ...upcoming].slice(0, 5);
+  const sortedPayments = [...overdue, ...dueToday, ...upcoming].slice(0, 3);
 
   const totalPending = pendingTasks.reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
@@ -191,10 +217,13 @@ export default function Dashboard() {
         <Card className="bg-foreground text-background border-none rounded-[2rem] shadow-xl overflow-hidden relative">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
           <CardContent className="p-8">
-            <p className="text-background/70 font-medium mb-2">Balance Total</p>
+            <p className="text-background/70 font-medium mb-2">Balance total del hogar</p>
             <h2 className="text-4xl font-bold tracking-tight" data-testid="text-total-balance">
               {formatCurrency(dashboard?.totalBalance || 0)}
             </h2>
+            <p className="text-sm text-background/60 mt-3">
+              Incluye cuentas y movimientos registrados
+            </p>
           </CardContent>
         </Card>
       </section>
@@ -232,93 +261,70 @@ export default function Dashboard() {
             </p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl border-none shadow-sm bg-card">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground mb-3">Balance mensual</p>
-            <p className={`text-xl font-bold tabular-nums ${monthlyBalance < 0 ? "text-destructive" : "text-primary"}`}>
-              {formatCurrency(monthlyBalance)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-none shadow-sm bg-card">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground mb-3">Gastos / ingresos</p>
-            <p className={`text-xl font-bold tabular-nums ${expenseRatio >= 80 ? "text-destructive" : "text-foreground"}`}>
-              {expenseRatio.toFixed(0)}%
-            </p>
-          </CardContent>
-        </Card>
         </div>
       </section>
 
-      <section>
-        <Card className="rounded-2xl border-none shadow-sm bg-card">
-          <CardContent className="p-5 flex gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <Lightbulb className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-semibold mb-1">Insight del mes</p>
-              <p className="text-sm text-muted-foreground">{monthlyInsight}</p>
-            </div>
-          </CardContent>
-        </Card>
+      <section className="space-y-3">
+        <h3 className="text-lg font-semibold">Acciones rápidas</h3>
+        <div className="grid grid-cols-3 gap-3">
+          <Link href="/transactions?type=expense">
+            <Button variant="outline" className="h-20 min-h-20 w-full rounded-2xl flex-col gap-2 border-destructive/30 text-destructive shadow-sm hover:bg-destructive hover:text-destructive-foreground" data-testid="button-quick-expense">
+              <Plus className="w-5 h-5" />
+              <span className="text-xs font-semibold">Gasto</span>
+            </Button>
+          </Link>
+          <Link href="/transactions?type=income">
+            <Button variant="outline" className="h-20 min-h-20 w-full rounded-2xl flex-col gap-2 border-primary/30 text-primary shadow-sm hover:bg-primary hover:text-primary-foreground" data-testid="button-quick-income">
+              <Plus className="w-5 h-5" />
+              <span className="text-xs font-semibold">Ingreso</span>
+            </Button>
+          </Link>
+          <Link href="/transactions?type=transfer">
+            <Button variant="outline" className="h-20 min-h-20 w-full rounded-2xl flex-col gap-2 border-muted-foreground/20 text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground" data-testid="button-quick-transfer">
+              <ArrowLeftRight className="w-5 h-5" />
+              <span className="text-xs font-semibold">Transferir</span>
+            </Button>
+          </Link>
+        </div>
       </section>
 
-      {budgetAlerts.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-muted-foreground" />
-              Presupuestos en alerta
-            </h3>
-            <Link href="/settings/budgets">
-              <span className="text-sm font-medium text-primary flex items-center cursor-pointer">
-                Ver <ChevronRight className="w-4 h-4 ml-1" />
-              </span>
-            </Link>
-          </div>
+      <section className="space-y-3">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-muted-foreground" />
+          Alertas internas
+        </h3>
 
-          <Card className="rounded-2xl border-none shadow-sm bg-card overflow-hidden">
+        <Card className="rounded-2xl border-none shadow-sm bg-card overflow-hidden">
+          {alerts.length > 0 ? (
             <div className="divide-y divide-border/50">
-              {budgetAlerts.map(budget => (
-                <div key={budget.id} className="p-4 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{budget.category?.name || "Sin categoría"}</p>
-                    <p className={`text-xs font-medium ${budget.status.text}`}>
-                      {budget.status.label} · {budget.usedPercent.toFixed(0)}% usado
-                    </p>
+              {alerts.slice(0, 5).map(alert => {
+                const tone = getAlertTone(alert.severity);
+                return (
+                  <div key={alert.id} className="p-4 flex items-start gap-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tone.icon}`}>
+                      <AlertCircle className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium text-sm truncate">{alert.title}</p>
+                        <Badge variant={tone.badge} className="text-[10px] shrink-0">
+                          {tone.label}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{alert.description}</p>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-semibold tabular-nums">{formatCurrency(budget.spent)}</p>
-                    <p className="text-xs text-muted-foreground">de {formatCurrency(budget.budgeted)}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </Card>
-        </section>
-      )}
-
-      {topExpenseCategories.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <PieChart className="w-5 h-5 text-muted-foreground" />
-            Top gastos por categoría
-          </h3>
-
-          <Card className="rounded-2xl border-none shadow-sm bg-card overflow-hidden">
-            <div className="divide-y divide-border/50">
-              {topExpenseCategories.map(category => (
-                <div key={category.name} className="p-4 flex items-center justify-between gap-3">
-                  <p className="font-medium truncate">{category.name}</p>
-                  <span className="font-semibold text-destructive tabular-nums">{formatCurrency(category.amount)}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </section>
-      )}
+          ) : (
+            <CardContent className="p-5">
+              <p className="text-sm font-medium">Sin alertas activas</p>
+              <p className="text-xs text-muted-foreground mt-1">No hay presupuestos, pagos o cuentas que requieran atención inmediata.</p>
+            </CardContent>
+          )}
+        </Card>
+      </section>
 
       {/* Upcoming payments */}
       {sortedPayments.length > 0 && (
@@ -381,6 +387,55 @@ export default function Dashboard() {
           </Card>
         </section>
       )}
+
+      {budgetAlerts.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-muted-foreground" />
+              Presupuestos críticos
+            </h3>
+            <Link href="/settings/budgets">
+              <span className="text-sm font-medium text-primary flex items-center cursor-pointer">
+                Ver <ChevronRight className="w-4 h-4 ml-1" />
+              </span>
+            </Link>
+          </div>
+
+          <Card className="rounded-2xl border-none shadow-sm bg-card overflow-hidden">
+            <div className="divide-y divide-border/50">
+              {budgetAlerts.map(budget => (
+                <div key={budget.id} className="p-4 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{budget.category?.name || "Sin categoría"}</p>
+                    <p className={`text-xs font-medium ${budget.status.text}`}>
+                      {budget.status.label} · {budget.usedPercent.toFixed(0)}% usado
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-semibold tabular-nums">{formatCurrency(budget.spent)}</p>
+                    <p className="text-xs text-muted-foreground">de {formatCurrency(budget.budgeted)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </section>
+      )}
+
+      <section>
+        <Card className="rounded-2xl border-none shadow-sm bg-card">
+          <CardContent className="p-5 flex gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Lightbulb className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="font-semibold mb-1">Insight del mes</p>
+              <p className="text-sm text-muted-foreground">{monthlyInsight}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
       {/* Recent transactions */}
       <section className="space-y-4">

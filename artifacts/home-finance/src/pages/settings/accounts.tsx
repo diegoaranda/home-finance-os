@@ -195,9 +195,9 @@ export default function AccountsSettings() {
               <div
                 key={acc.id}
                 data-testid={`card-account-${acc.id}`}
-                className={`flex items-center justify-between p-4 rounded-2xl bg-card shadow-sm border border-border/40 transition-opacity ${!acc.active ? "opacity-50" : ""}`}
+                className={`flex flex-col gap-4 p-4 rounded-2xl bg-card shadow-sm border border-border/40 transition-opacity sm:flex-row sm:items-center sm:justify-between ${!acc.active ? "opacity-50" : ""}`}
               >
-                <div className="flex items-center gap-4">
+                <div className="flex min-w-0 items-center gap-4">
                   <div
                     className="w-12 h-12 rounded-full flex items-center justify-center"
                     style={acc.color ? { backgroundColor: `${acc.color}22`, color: acc.color } : undefined}
@@ -207,13 +207,13 @@ export default function AccountsSettings() {
                       style={!acc.color ? undefined : { color: acc.color }}
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="font-semibold">{acc.name}</h3>
                     <p className="text-sm text-muted-foreground">{getTypeLabel(acc.type)}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex w-full flex-wrap items-center justify-between gap-3 sm:w-auto sm:justify-end">
                   <span className="font-bold tabular-nums">
                     {formatCurrency(acc.current_balance ?? acc.initial_balance ?? 0)}
                   </span>

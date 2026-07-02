@@ -2,6 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 
+const CONTRIBUTIONS_PENDING_MESSAGE = "Aportes reales pendiente de implementar.";
+
+function isMissingColumnError(error: any, column: string) {
+  const message = String(error?.message || error?.details || "");
+  return message.includes(column) && message.includes("schema cache");
+}
+
 export function useSavingsGoals() {
   const { appUser } = useAuth();
   const queryClient = useQueryClient();
@@ -28,22 +35,31 @@ export function useSavingsGoals() {
 
   const createGoal = useMutation({
     mutationFn: async (newGoal: any) => {
-      const payload: Record<string, any> = {
+      if (!appUser?.household_id) throw new Error("No hay hogar activo.");
+
+      const basePayload: Record<string, any> = {
         name: newGoal.name,
         target_amount: newGoal.target_amount,
-        current_amount: 0,
-        household_id: appUser?.household_id,
+        household_id: appUser.household_id,
       };
-      if (newGoal.deadline) {
-        payload.deadline = newGoal.deadline;
-      }
 
-      const { data, error } = await supabase
+      const insertGoal = async (payload: Record<string, any>) => supabase
         .from("savings_goals")
         .insert([payload])
         .select()
         .single();
 
+      if (newGoal.deadline) {
+        const withDeadline = await insertGoal({ ...basePayload, deadline: newGoal.deadline });
+        if (!withDeadline.error) return withDeadline.data;
+        if (!isMissingColumnError(withDeadline.error, "deadline")) throw withDeadline.error;
+
+        const withTargetDate = await insertGoal({ ...basePayload, target_date: newGoal.deadline });
+        if (!withTargetDate.error) return withTargetDate.data;
+        if (!isMissingColumnError(withTargetDate.error, "target_date")) throw withTargetDate.error;
+      }
+
+      const { data, error } = await insertGoal(basePayload);
       if (error) throw error;
       return data;
     },
@@ -51,18 +67,8 @@ export function useSavingsGoals() {
   });
 
   const addProgress = useMutation({
-    mutationFn: async ({ goal, amount }: { goal: any; amount: number }) => {
-      const current = Number(goal.current_amount || 0);
-      const { data, error } = await supabase
-        .from("savings_goals")
-        .update({ current_amount: current + amount })
-        .eq("id", goal.id)
-        .eq("household_id", appUser?.household_id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+    mutationFn: async (_payload: { goal: any; amount: number }) => {
+      throw new Error(CONTRIBUTIONS_PENDING_MESSAGE);
     },
     onSuccess: invalidate,
   });
@@ -72,5 +78,6 @@ export function useSavingsGoals() {
     isLoading: goalsQuery.isLoading,
     createGoal,
     addProgress,
+    contributionsPendingMessage: CONTRIBUTIONS_PENDING_MESSAGE,
   };
 }

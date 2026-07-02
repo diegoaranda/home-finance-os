@@ -34,6 +34,9 @@ export default function Settings() {
         </div>
         <div className="overflow-hidden">
           <h2 className="text-xl font-semibold truncate">{appUser?.name || "Usuario"}</h2>
+          {appUser?.email && (
+            <p className="text-sm text-muted-foreground truncate mt-0.5">{appUser.email}</p>
+          )}
           <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
             <Shield className="w-3 h-3" />
             <span>Familia {appUser?.household_id ? "Activa" : "No asignada"}</span>
@@ -66,14 +69,16 @@ export default function Settings() {
       <section className="space-y-2">
         <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider px-2">Cuenta</h3>
         <div className="bg-card rounded-3xl overflow-hidden shadow-sm divide-y divide-border/50">
-          <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+          <div className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                 <User className="w-4 h-4 text-foreground" />
               </div>
-              <span className="font-medium">Perfil</span>
+              <div>
+                <span className="font-medium">Perfil</span>
+                <p className="text-xs text-muted-foreground">Gestionado desde Supabase Auth</p>
+              </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-muted-foreground" />
           </div>
         </div>
       </section>
