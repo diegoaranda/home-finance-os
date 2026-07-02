@@ -60,7 +60,7 @@ function getMonthlyInsight({
 }
 
 export default function Dashboard() {
-  const { appUser } = useAuth();
+  const { user } = useAuth();
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
@@ -70,6 +70,11 @@ export default function Dashboard() {
   const { budgets, isLoading: loadingBudgets } = useBudgets(currentMonth, currentYear);
   const { toast } = useToast();
   const [payingId, setPayingId] = useState<string | null>(null);
+  const displayName =
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    user?.email?.split("@")[0] ||
+    "Usuario";
 
   if (loadingDash || loadingTx || loadingRec || loadingBudgets) {
     return (
@@ -177,7 +182,7 @@ export default function Dashboard() {
     <div className="p-6 space-y-8 pb-24">
       <header>
         <h1 className="text-xl font-medium text-muted-foreground">
-          {getGreeting(appUser?.display_name || "Usuario")}
+          {getGreeting(displayName)}
         </h1>
       </header>
 
