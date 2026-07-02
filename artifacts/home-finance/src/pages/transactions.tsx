@@ -48,6 +48,14 @@ export default function Transactions() {
   const isValid = isTransfer
     ? amountValue > 0 && !!accountFromId && !!accountToId && accountFromId !== accountToId && !!date
     : amountValue > 0 && !!accountId && !!categoryId && !!date;
+  const selectableAccounts = editingTx
+    ? accounts.filter(acc =>
+        acc.active ||
+        acc.id === accountId ||
+        acc.id === accountFromId ||
+        acc.id === accountToId
+      )
+    : accounts.filter(acc => acc.active);
 
   const resetForm = () => {
     setType("expense");
@@ -188,7 +196,7 @@ export default function Transactions() {
                     <Select value={accountFromId} onValueChange={setAccountFromId} required>
                       <SelectTrigger data-testid="select-transfer-account-from"><SelectValue placeholder="Selecciona origen" /></SelectTrigger>
                       <SelectContent>
-                        {accounts.map(acc => (
+                        {selectableAccounts.map(acc => (
                           <SelectItem key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.current_balance ?? acc.initial_balance ?? 0)})</SelectItem>
                         ))}
                       </SelectContent>
@@ -200,7 +208,7 @@ export default function Transactions() {
                     <Select value={accountToId} onValueChange={setAccountToId} required>
                       <SelectTrigger data-testid="select-transfer-account-to"><SelectValue placeholder="Selecciona destino" /></SelectTrigger>
                       <SelectContent>
-                        {accounts.map(acc => (
+                        {selectableAccounts.map(acc => (
                           <SelectItem key={acc.id} value={acc.id} disabled={acc.id === accountFromId}>{acc.name} ({formatCurrency(acc.current_balance ?? acc.initial_balance ?? 0)})</SelectItem>
                         ))}
                       </SelectContent>
@@ -214,7 +222,7 @@ export default function Transactions() {
                     <Select value={accountId} onValueChange={setAccountId} required>
                       <SelectTrigger data-testid="select-transaction-account"><SelectValue placeholder="Selecciona una cuenta" /></SelectTrigger>
                       <SelectContent>
-                        {accounts.map(acc => (
+                        {selectableAccounts.map(acc => (
                           <SelectItem key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.current_balance ?? acc.initial_balance ?? 0)})</SelectItem>
                         ))}
                       </SelectContent>

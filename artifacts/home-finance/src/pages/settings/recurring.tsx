@@ -68,7 +68,9 @@ export default function RecurringSettings() {
 
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingTask, setDeletingTask] = useState<any | null>(null);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+  const expenseCategories = categories.filter(category => category.type === "expense");
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
@@ -124,6 +126,15 @@ export default function RecurringSettings() {
       return;
     }
 
+    if (payload.category_id && !expenseCategories.some(category => category.id === payload.category_id)) {
+      toast({
+        title: "Categoría inválida",
+        description: "Seleccione una categoría de gasto para este gasto fijo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       if (editingId) {
         await updateRecurring.mutateAsync({ id: editingId, data: payload });
@@ -156,10 +167,13 @@ export default function RecurringSettings() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async () => {
+    if (!deletingTask) return;
+
     try {
-      await deleteRecurring.mutateAsync(id);
-      toast({ title: "Eliminado" });
+      await deleteRecurring.mutateAsync(deletingTask.id);
+      setDeletingTask(null);
+      toast({ title: "Gasto fijo eliminado" });
     } catch (err: any) {
       toast({
         title: "Error al eliminar",
@@ -239,7 +253,7 @@ export default function RecurringSettings() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
-                        onClick={() => handleDelete(task.id)}
+                        onClick={() => setDeletingTask(task)}
                       >
                         Eliminar
                       </DropdownMenuItem>
@@ -386,7 +400,7 @@ export default function RecurringSettings() {
                   <SelectValue placeholder="Sin categoría" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map(cat => (
+                  {expenseCategories.map(cat => (
                     <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -428,6 +442,32 @@ export default function RecurringSettings() {
               {isPending ? "Guardando…" : "Guardar"}
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deletingTask} onOpenChange={val => { if (!val) setDeletingTask(null); }}>
+        <DialogContent className="sm:max-w-[380px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Eliminar gasto fijo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 pt-2">
+            <p className="text-sm text-muted-foreground">
+              Esta acción eliminará el gasto fijo. Los movimientos ya registrados no se eliminarán.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="outline" onClick={() => setDeletingTask(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteRecurring.isPending}
+                data-testid="button-confirm-delete-recurring"
+              >
+                {deleteRecurring.isPending ? "Eliminando..." : "Eliminar"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

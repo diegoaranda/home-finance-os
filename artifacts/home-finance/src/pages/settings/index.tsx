@@ -33,7 +33,7 @@ export default function Settings() {
           <User className="w-8 h-8 text-primary" />
         </div>
         <div className="overflow-hidden">
-          <h2 className="text-xl font-semibold truncate">{appUser?.display_name || "Usuario"}</h2>
+          <h2 className="text-xl font-semibold truncate">{appUser?.name || "Usuario"}</h2>
           <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
             <Shield className="w-3 h-3" />
             <span>Familia {appUser?.household_id ? "Activa" : "No asignada"}</span>

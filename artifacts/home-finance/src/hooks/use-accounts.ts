@@ -10,6 +10,9 @@ function toError(e: unknown): Error {
   return new Error(String(e));
 }
 
+const ACCOUNT_IN_USE_MESSAGE =
+  "No puedes eliminar esta cuenta porque ya tiene movimientos asociados.";
+
 export function useAccounts() {
   const { appUser } = useAuth();
   const queryClient = useQueryClient();
@@ -54,6 +57,27 @@ export function useAccounts() {
     enabled: !!appUser?.household_id,
   });
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["accounts", appUser?.household_id] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard", appUser?.household_id] });
+    queryClient.invalidateQueries({ queryKey: ["transactions", appUser?.household_id] });
+    queryClient.invalidateQueries({ queryKey: ["reports", appUser?.household_id] });
+    queryClient.invalidateQueries({ queryKey: ["budgets", appUser?.household_id] });
+  };
+
+  const canDeleteAccount = async (id: string) => {
+    if (!appUser?.household_id) return false;
+
+    const { count, error } = await supabase
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("household_id", appUser.household_id)
+      .or(`account_from_id.eq.${id},account_to_id.eq.${id}`);
+
+    if (error) throw toError(error);
+    return (count ?? 0) === 0;
+  };
+
   const createAccount = useMutation({
     mutationFn: async (newAccount: any) => {
       const initial = parseFloat(newAccount.initial_balance) || 0;
@@ -69,9 +93,7 @@ export function useAccounts() {
       if (error) throw toError(error);
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accounts", appUser?.household_id] });
-    },
+    onSuccess: invalidate,
   });
 
   const updateAccount = useMutation({
@@ -86,13 +108,14 @@ export function useAccounts() {
       if (error) throw toError(error);
       return result;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accounts", appUser?.household_id] });
-    },
+    onSuccess: invalidate,
   });
 
   const deleteAccount = useMutation({
     mutationFn: async (id: string) => {
+      const canDelete = await canDeleteAccount(id);
+      if (!canDelete) throw new Error(ACCOUNT_IN_USE_MESSAGE);
+
       const { error } = await supabase
         .from("accounts")
         .delete()
@@ -100,9 +123,7 @@ export function useAccounts() {
         .eq("household_id", appUser?.household_id);
       if (error) throw toError(error);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accounts", appUser?.household_id] });
-    },
+    onSuccess: invalidate,
   });
 
   return {
@@ -111,5 +132,6 @@ export function useAccounts() {
     createAccount,
     updateAccount,
     deleteAccount,
+    canDeleteAccount,
   };
 }

@@ -63,6 +63,7 @@ export default function AccountsSettings() {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingAccount, setDeletingAccount] = useState<any | null>(null);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -127,10 +128,27 @@ export default function AccountsSettings() {
         id: acc.id,
         data: { active: !acc.active },
       });
+      toast({ title: acc.active ? "Cuenta desactivada" : "Cuenta activada" });
     } catch (err: any) {
       toast({
         title: "Error",
         description: err?.message ?? "No se pudo actualizar la cuenta.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingAccount) return;
+
+    try {
+      await deleteAccount.mutateAsync(deletingAccount.id);
+      setDeletingAccount(null);
+      toast({ title: "Cuenta eliminada" });
+    } catch (err: any) {
+      toast({
+        title: "No se pudo eliminar",
+        description: err?.message ?? "No se pudo eliminar la cuenta.",
         variant: "destructive",
       });
     }
@@ -238,7 +256,7 @@ export default function AccountsSettings() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
-                        onClick={() => deleteAccount.mutate(acc.id)}
+                        onClick={() => setDeletingAccount(acc)}
                         data-testid={`button-delete-${acc.id}`}
                       >
                         Eliminar
@@ -370,6 +388,32 @@ export default function AccountsSettings() {
               {isPending ? "Guardando…" : "Guardar"}
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deletingAccount} onOpenChange={val => { if (!val) setDeletingAccount(null); }}>
+        <DialogContent className="sm:max-w-[380px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Eliminar cuenta</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 pt-2">
+            <p className="text-sm text-muted-foreground">
+              Solo se eliminará si no tiene movimientos asociados. Si ya fue usada, desactívala para ocultarla de futuros formularios.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="outline" onClick={() => setDeletingAccount(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleteAccount.isPending}
+                data-testid="button-confirm-delete-account"
+              >
+                {deleteAccount.isPending ? "Eliminando..." : "Eliminar"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -39,9 +39,8 @@ export function useDashboard() {
       if (allTxError) throw allTxError;
       if (monthTxError) throw monthTxError;
 
-      // Total balance = sum of active account initial balances + net of ALL transactions
+      // Total balance keeps inactive accounts in historical calculations.
       const initialSum = (accounts ?? [])
-        .filter(a => a.active)
         .reduce((s, a) => s + Number(a.initial_balance || 0), 0);
 
       const allTxNet = (allTx ?? []).reduce((s, tx) => {
