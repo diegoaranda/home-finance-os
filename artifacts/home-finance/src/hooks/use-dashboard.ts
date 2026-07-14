@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { startOfMonth, endOfMonth } from "date-fns";
+import { withCurrentBalances } from "@/lib/account-balance";
 
 export function useDashboard() {
   const { appUser } = useAuth();
@@ -21,11 +22,11 @@ export function useDashboard() {
       ] = await Promise.all([
         supabase
           .from("accounts")
-          .select("initial_balance, active")
+          .select("id, name, type, initial_balance, active, color, icon, household_id")
           .eq("household_id", appUser.household_id),
         supabase
           .from("transactions")
-          .select("type, amount")
+          .select("type, amount, account_from_id, account_to_id, transaction_date, household_id")
           .eq("household_id", appUser.household_id),
         supabase
           .from("transactions")
@@ -39,17 +40,11 @@ export function useDashboard() {
       if (allTxError) throw allTxError;
       if (monthTxError) throw monthTxError;
 
-      // Total balance keeps inactive accounts in historical calculations.
-      const initialSum = (accounts ?? [])
-        .reduce((s, a) => s + Number(a.initial_balance || 0), 0);
-
-      const allTxNet = (allTx ?? []).reduce((s, tx) => {
-        if (tx.type === "income") return s + Number(tx.amount || 0);
-        if (tx.type === "expense") return s - Number(tx.amount || 0);
-        return s;
-      }, 0);
-
-      const totalBalance = initialSum + allTxNet;
+      const activeAccounts = withCurrentBalances(
+        (accounts ?? []).filter(account => account.active),
+        allTx ?? [],
+        appUser.household_id,
+      );
 
       let income = 0;
       let expenses = 0;
@@ -59,7 +54,7 @@ export function useDashboard() {
       });
 
       return {
-        totalBalance,
+        accounts: activeAccounts,
         income,
         expenses,
       };

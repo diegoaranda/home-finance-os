@@ -1,6 +1,7 @@
 import { endOfMonth, endOfWeek, endOfYear, format, startOfMonth, startOfWeek, startOfYear } from "date-fns";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useTransactions } from "@/hooks/use-transactions";
+import { getAccountBalance } from "@/lib/account-balance";
 
 export type AccountPeriod = "today" | "week" | "month" | "year" | "custom";
 
@@ -86,15 +87,7 @@ export function useAccountSummary(accountId: string | undefined, options: Accoun
   );
 
   const currentBalance = account
-    ? Number(account.initial_balance || 0) +
-      accountTransactions.reduce((sum, tx) => {
-        const amount = Number(tx.amount || 0);
-        if (tx.type === "income" && (tx.account_to_id === accountId || tx.account_id === accountId)) return sum + amount;
-        if (tx.type === "expense" && (tx.account_from_id === accountId || tx.account_id === accountId)) return sum - amount;
-        if (tx.type === "transfer" && tx.account_to_id === accountId) return sum + amount;
-        if (tx.type === "transfer" && tx.account_from_id === accountId) return sum - amount;
-        return sum;
-      }, 0)
+    ? getAccountBalance(account, accountTransactions, account.household_id)
     : 0;
 
   return {

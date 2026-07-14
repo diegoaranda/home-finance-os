@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import {
   ArrowDownRight, ArrowUpRight, CalendarClock,
   CreditCard, ChevronRight, CheckCircle2, AlertCircle, ArrowLeftRight,
-  Lightbulb, TrendingUp, Plus
+  Lightbulb, TrendingUp, Plus, Wallet, Building, Banknote, Bitcoin, Coins, PiggyBank
 } from "lucide-react";
 import { Link } from "wouter";
 import { format, parseISO, startOfMonth } from "date-fns";
@@ -26,6 +26,19 @@ type CategorySpend = {
 };
 
 const QUICK_TRANSACTION_TYPE_KEY = "home-finance:quick-transaction-type";
+
+const ACCOUNT_ICONS = {
+  bank: Building,
+  cash: Banknote,
+  savings: PiggyBank,
+  credit_card: CreditCard,
+  investment: Coins,
+  crypto: Bitcoin,
+} as const;
+
+function getAccountIcon(type: string) {
+  return ACCOUNT_ICONS[type as keyof typeof ACCOUNT_ICONS] ?? Wallet;
+}
 
 function rememberQuickTransactionType(type: "expense" | "income" | "transfer") {
   window.sessionStorage.setItem(QUICK_TRANSACTION_TYPE_KEY, type);
@@ -137,7 +150,6 @@ export default function Dashboard() {
   const monthlyExpenses = monthTransactions.reduce((sum, tx) => (
     tx.type === "expense" ? sum + Number(tx.amount || 0) : sum
   ), 0);
-  const monthlyBalance = monthlyIncome - monthlyExpenses;
   const spentByCategory = monthTransactions.reduce((totals: Record<string, CategorySpend>, tx) => {
     if (tx.type !== "expense" || !tx.category_id) return totals;
     const categoryName = tx.category?.name || "Sin categoría";
@@ -223,20 +235,62 @@ export default function Dashboard() {
         </h1>
       </header>
 
-      {/* Balance hero */}
-      <section>
-        <Card className="bg-foreground text-background border-none rounded-[2rem] shadow-xl overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
-          <CardContent className="p-8">
-            <p className="text-background/70 font-medium mb-2">Balance total del hogar</p>
-            <h2 className="text-4xl font-bold tracking-tight" data-testid="text-total-balance">
-              {formatCurrency(dashboard?.totalBalance || 0)}
-            </h2>
-            <p className="text-sm text-background/60 mt-3">
-              Incluye cuentas y movimientos registrados
-            </p>
-          </CardContent>
-        </Card>
+      {/* Account balances */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Saldo por cuenta</h2>
+        {dashboard?.accounts.length ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {dashboard.accounts.map(account => {
+              const AccountIcon = getAccountIcon(account.type);
+              return (
+                <Card
+                  key={account.id}
+                  className="rounded-2xl border-none bg-card shadow-sm"
+                  data-testid={`card-dashboard-account-${account.id}`}
+                >
+                  <CardContent className="flex items-center gap-4 p-5">
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+                      style={account.color
+                        ? { backgroundColor: `${account.color}22`, color: account.color }
+                        : undefined}
+                    >
+                      <AccountIcon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-muted-foreground">
+                        {account.name}
+                      </p>
+                      <p
+                        className="mt-1 text-2xl font-bold tabular-nums tracking-tight"
+                        data-testid={`text-dashboard-account-balance-${account.id}`}
+                      >
+                        {formatCurrency(account.current_balance)}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <Card className="rounded-2xl border-none bg-card shadow-sm">
+            <CardContent className="p-6 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <Wallet className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium">Sin cuentas activas</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Agrega o activa una cuenta para ver su saldo actual.
+              </p>
+              <Link href="/settings/accounts">
+                <Button variant="outline" className="mt-4 rounded-xl">
+                  Configurar cuentas
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       {/* Monthly summary */}

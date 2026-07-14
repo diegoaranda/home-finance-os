@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { withCurrentBalances } from "@/lib/account-balance";
 
 function toError(e: unknown): Error {
   if (e instanceof Error) return e;
@@ -32,27 +33,17 @@ export function useAccounts() {
           .order("name"),
         supabase
           .from("transactions")
-          .select("type, amount, account_from_id, account_to_id")
+          .select("type, amount, account_from_id, account_to_id, household_id")
           .eq("household_id", appUser.household_id),
       ]);
       if (accountsError) throw toError(accountsError);
       if (transactionsError) throw toError(transactionsError);
 
-      return (accounts ?? []).map(account => {
-        const txNet = (transactions ?? []).reduce((sum, tx) => {
-          const amount = Number(tx.amount || 0);
-          if (tx.type === "income" && tx.account_to_id === account.id) return sum + amount;
-          if (tx.type === "expense" && tx.account_from_id === account.id) return sum - amount;
-          if (tx.type === "transfer" && tx.account_from_id === account.id) return sum - amount;
-          if (tx.type === "transfer" && tx.account_to_id === account.id) return sum + amount;
-          return sum;
-        }, 0);
-
-        return {
-          ...account,
-          current_balance: Number(account.initial_balance || 0) + txNet,
-        };
-      });
+      return withCurrentBalances(
+        accounts ?? [],
+        transactions ?? [],
+        appUser.household_id,
+      );
     },
     enabled: !!appUser?.household_id,
   });
